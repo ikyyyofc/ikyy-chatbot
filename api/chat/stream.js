@@ -66,4 +66,4 @@ export default async function handler(req, res) {
   }
 }
 
-export const config = { runtime: 'nodejs20.x' }
+// Vercel will use the default Node.js runtime for Serverless Functions
