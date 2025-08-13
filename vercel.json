@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/**/*.{js,mjs}": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "ignoreCommand": "echo ok",
+  "cleanUrls": true
+}
+
