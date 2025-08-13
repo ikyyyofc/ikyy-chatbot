@@ -10,13 +10,11 @@ function Avatar({ kind }) {
   )
 }
 
-const initialAssistantGreeting = {
-  role: 'assistant',
-  content: 'Halo! Aku asisten AI. Ada yang bisa kubantu?'
-}
+// Instruction used to generate the very first greeting
+const GREETING_INSTRUCTION = 'Berikan sapaan pembuka yang singkat, ramah, dan membantu untuk menyambut pengguna baru. Gunakan Bahasa Indonesia.'
 
 export default function App() {
-  const [messages, setMessages] = useState([initialAssistantGreeting])
+  const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [controller, setController] = useState(null)
@@ -29,6 +27,7 @@ export default function App() {
   const stickRef = useRef(true)
   const lastScrollTickRef = useRef(0)
   const textareaRef = useRef(null)
+  const greetedRef = useRef(false)
 
   // Track if user is near bottom; only then auto-stick
   useEffect(() => {
@@ -73,6 +72,16 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = 'dark'
+  }, [])
+
+  // Generate the initial assistant greeting via streaming once on mount
+  useEffect(() => {
+    if (greetedRef.current) return
+    greetedRef.current = true
+    ;(async () => {
+      await generateGreeting()
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Close nav menu when clicking outside or pressing Escape
@@ -161,6 +170,46 @@ export default function App() {
           return copy
         })
       }
+    } finally {
+      setLoading(false)
+      setController(null)
+    }
+  }
+
+  async function generateGreeting() {
+    // Add a placeholder assistant message and stream the greeting
+    setMessages([{ role: 'assistant', content: '' }])
+    setLoading(true)
+    try {
+      const ac = new AbortController()
+      setController(ac)
+      const res = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Use a synthetic user instruction to request a greeting
+        body: JSON.stringify({ messages: [{ role: 'user', content: GREETING_INSTRUCTION }] }),
+        signal: ac.signal
+      })
+      if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        setMessages(prev => {
+          const copy = prev.slice()
+          const idx = copy.length - 1
+          copy[idx] = { role: 'assistant', content: (copy[idx]?.content || '') + chunk }
+          return copy
+        })
+        if (stickRef.current && bottomRef.current) {
+          bottomRef.current.scrollIntoView({ behavior: 'auto', block: 'end' })
+        }
+      }
+    } catch (err) {
+      console.error(err)
+      setMessages([{ role: 'assistant', content: 'Halo! Ada yang bisa kubantu hari ini?' }])
     } finally {
       setLoading(false)
       setController(null)
@@ -276,8 +325,8 @@ export default function App() {
   }
 
   function resetChat() {
-    setMessages([initialAssistantGreeting])
     setInput('')
+    generateGreeting()
   }
 
   return (

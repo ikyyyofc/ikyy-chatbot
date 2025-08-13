@@ -9,8 +9,32 @@
     <title>ChatGPT Clone</title>
     <meta name="description" content="Simple ChatGPT-like UI using OpenAI" />
     <link rel="icon" href="data:,">
+    <style>
+      /* Minimal inline styles for an immediate preloader paint */
+      #preloader { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: radial-gradient(1200px 800px at 50% 50%, rgba(18,22,28,.9), rgba(8,10,14,1)) , #090c12; color: #e6f3ff; transition: opacity .45s ease, visibility .45s ease; }
+      #preloader.hide { opacity: 0; visibility: hidden; }
+      #preloader .loader { position: relative; width: 140px; height: 140px; }
+      #preloader .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid transparent; box-shadow: 0 0 18px rgba(0, 180, 255, .25), inset 0 0 22px rgba(0, 180, 255, .15); }
+      #preloader .r1 { border-top-color: #00d1ff; border-right-color: #00d1ff; animation: spin 1.2s linear infinite; filter: drop-shadow(0 0 8px rgba(0, 209, 255, .75)); }
+      #preloader .r2 { inset: 10px; border-left-color: #7c4dff; border-bottom-color: #7c4dff; animation: spinR 1.6s linear infinite; filter: drop-shadow(0 0 8px rgba(124, 77, 255, .7)); }
+      #preloader .r3 { inset: 22px; border-top-color: #00ffa6; border-right-color: #00ffa6; animation: spin 2s linear infinite; filter: drop-shadow(0 0 8px rgba(0, 255, 166, .6)); }
+      #preloader .logo { position: absolute; inset: 0; display: grid; place-items: center; font-family: 'Orbitron', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; font-weight: 800; letter-spacing: 1px; text-shadow: 0 0 16px rgba(0, 180, 255, .55); }
+      #preloader .glow { position: absolute; inset: -20px; border-radius: 50%; background: radial-gradient(60% 60% at 50% 50%, rgba(0, 180, 255, .25), rgba(0,0,0,0)); filter: blur(20px); animation: pulse 2.2s ease-in-out infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes spinR { to { transform: rotate(-360deg); } }
+      @keyframes pulse { 0%,100% { opacity: .55 } 50% { opacity: .9 } }
+    </style>
   </head>
   <body>
+    <div id="preloader" aria-hidden="true">
+      <div class="loader" role="progressbar" aria-label="Memuat">
+        <span class="glow"></span>
+        <span class="ring r1"></span>
+        <span class="ring r2"></span>
+        <span class="ring r3"></span>
+        <span class="logo">IKYY</span>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

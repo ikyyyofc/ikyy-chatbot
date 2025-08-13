@@ -10,6 +10,8 @@ const app = express()
 const port = process.env.PORT || 3001
 
 app.use(cors())
+// Parse JSON request bodies for API routes
+app.use(express.json())
 
 // Credit header for API responses only
 app.use((req, res, next) => {
