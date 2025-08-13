@@ -24,7 +24,7 @@ export const ENABLE_STREAMING =
 // Instruction used to generate the very first greeting
 export const GREETING_INSTRUCTION = getEnv(
     'GREETING_INSTRUCTION',
-    'Berikan sapaan pembuka yang singkat, ramah, dan membantu untuk menyambut pengguna baru. Gunakan Bahasa Indonesia.'
+    'Berikan sapaan pembuka yang singkat, ramah, dan membantu untuk menyambut pengguna baru. Gunakan Bahasa Indonesia. HANYA SAPAAN, JANGAN BERBICARA ATAU MENAMBAHKAN TEKS LAIN'
 )
 
 // Helper to prepend the system prompt consistently
