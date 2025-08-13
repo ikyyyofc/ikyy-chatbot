@@ -10,7 +10,6 @@ const app = express()
 const port = process.env.PORT || 3001
 
 app.use(cors())
-app.use(express.json({ limit: '1mb' }))
 
 // Credit header for API responses only
 app.use((req, res, next) => {
@@ -59,7 +58,7 @@ app.post('/api/chat/stream', async (req, res) => {
     const finalMessages = withSystemPrompt(messages)
 
     const stream = await openai.chat.completions.create({
-      ...buildOpenAIOptions({ model: chosenModel, temperature: TEMPERATURE }),
+      ...buildOpenAIOptions({ model: chosenModel }),
       messages: finalMessages,
       stream: true
     })
@@ -92,7 +91,7 @@ app.post('/api/chat', async (req, res) => {
     const finalMessages = withSystemPrompt(messages)
 
     const completion = await openai.chat.completions.create({
-      ...buildOpenAIOptions({ model: chosenModel, temperature: TEMPERATURE }),
+      ...buildOpenAIOptions({ model: chosenModel }),
       messages: finalMessages
       // For simplicity, not streaming here. Can be upgraded later.
     })
