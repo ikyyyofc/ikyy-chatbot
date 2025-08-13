@@ -31,7 +31,7 @@ export function withSystemPrompt(messages = []) {
 
 // Build OpenAI call options in one place
 export function buildOpenAIOptions({ model = DEFAULT_MODEL, temperature = TEMPERATURE } = {}) {
-  const opts = { model, temperature }
+  const opts = { model, temperature, frequency_penalty: 2 }
   if (TOP_P !== undefined) opts.top_p = TOP_P
   if (MAX_TOKENS !== undefined) opts.max_tokens = MAX_TOKENS
   return opts
