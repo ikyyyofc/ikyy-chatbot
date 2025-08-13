@@ -44,3 +44,4 @@ temp/
 
 # Vercel local project data
 .vercel/
+package-lock.json
