@@ -92,7 +92,7 @@ body::after { content:""; position:fixed; inset:0; pointer-events:none; z-index:
 .nav-menu{ transform: translateY(-6px); opacity: 0; animation: menuIn .18s ease forwards }
 .nav-menu a{ transition: background .15s ease, color .15s ease }
 .nav-menu a:active{ transform: translateY(1px) }
-.scroll-down{ position: fixed; right: 20px; bottom: 86px; width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--panel-border); background: linear-gradient(180deg, var(--panel-strong), var(--panel)); color: var(--text); box-shadow: 0 10px 24px rgba(0,0,0,.35); cursor: pointer }
+.scroll-down{ position: fixed; right: 20px; bottom: 86px; width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--panel-border); background: linear-gradient(180deg, var(--panel-strong), var(--panel)); color: var(--text); box-shadow: 0 10px 24px rgba(0,0,0,.35); cursor: pointer; display: grid; place-items: center }
 /* Remove blue highlight/focus ring on scroll-down */
 .scroll-down{ outline: none; box-shadow: 0 10px 24px rgba(0,0,0,.35); -webkit-tap-highlight-color: transparent }
 .scroll-down:focus, .scroll-down:focus-visible, .scroll-down:active{ outline: none; box-shadow: 0 10px 24px rgba(0,0,0,.35); background: linear-gradient(180deg, var(--panel-strong), var(--panel)) }
@@ -171,6 +171,10 @@ html[data-theme='light'] .textarea-wrap { background: rgba(255,255,255,.95); bor
 .send-icon:focus, .send-icon:focus-visible, .send-icon:active { outline: none; box-shadow: none }
 .composer textarea { -webkit-tap-highlight-color: transparent; outline: none }
 html[data-theme='light'] .send-icon { border-color: rgba(2,6,23,.15); color: #0f172a }
+/* Icon sizing for buttons */
+.send-icon svg{ width:18px; height:18px; display:block }
+.reset-btn svg{ width:18px; height:18px; display:block }
+.action svg{ width:14px; height:14px; display:block }
 html[data-theme='light'] .textarea-wrap::before { background: rgba(2,6,23,.1) }
 html[data-theme='light'] .textarea-wrap{ backdrop-filter: blur(6px) saturate(140%) }
 

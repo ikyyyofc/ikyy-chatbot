@@ -1,5 +1,5 @@
 import React, { useState, memo } from 'react'
-import { BotIcon, UserIcon } from './Icons.jsx'
+import { BotIcon, UserIcon, CopyIcon, RetryIcon } from './Icons.jsx'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
@@ -101,7 +101,9 @@ function Code({ inline, className, children, node }) {
     <pre className="codeblock">
       <div className="code-header">
         <span className="lang" title={fileLabel || language}>{fileLabel || language}</span>
-        <button className="action" onClick={onCopy} title="Copy code">⧉</button>
+        <button className="action" onClick={onCopy} title="Copy code" aria-label="Copy code">
+          <CopyIcon />
+        </button>
       </div>
       <code className={`hljs language-${language}`} dangerouslySetInnerHTML={{ __html: html }} />
     </pre>
@@ -151,10 +153,14 @@ function MessageImpl({ role, content, onCopy, onRetry }) {
           <div className="spacer" />
           <div className="actions">
             {onRetry && isAssistant && (
-              <button className="action" onClick={onRetry} title="Regenerate">↻</button>
+              <button className="action" onClick={onRetry} title="Regenerate" aria-label="Regenerate">
+                <RetryIcon />
+              </button>
             )}
             {onCopy && (
-              <button className="action" onClick={onCopy} title="Copy">⧉</button>
+              <button className="action" onClick={onCopy} title="Copy" aria-label="Copy">
+                <CopyIcon />
+              </button>
             )}
           </div>
           <div className="spacer" />

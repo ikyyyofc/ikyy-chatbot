@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Message from './components/Message.jsx'
-import { BotIcon } from './components/Icons.jsx'
+import { BotIcon, ResetIcon, WhatsAppIcon, InstagramIcon, GitHubIcon, ChevronDownIcon, SendIcon, StopIcon } from './components/Icons.jsx'
 import { GREETING_INSTRUCTION } from '../config.js'
 
 function Avatar({ kind }) {
@@ -381,7 +381,7 @@ export default function App() {
         <div className="controls">
           {/* fixed model: gpt-5-chat-latest */}
           <button className="icon-btn reset-btn" onClick={resetChat} aria-label="Reset chat" title="Reset">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5V2L7 7l5 5V9a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7Z"/></svg>
+            <ResetIcon />
           </button>
           <button
             className={`hamburger${menuOpen ? ' open' : ''}`}
@@ -398,15 +398,15 @@ export default function App() {
         {menuOpen && (
           <div className="nav-menu" ref={menuRef}>
             <a href="https://wa.me/6287866255637" target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.52 3.5A10.5 10.5 0 0 0 3.11 17.2L2 22l4.89-1.12A10.5 10.5 0 1 0 20.52 3.5Zm-8.02 17.36a8.83 8.83 0 0 1-4.5-1.26l-.32-.19-2.9.67.62-2.83-.21-.34a8.86 8.86 0 1 1 7.31 3.95Zm4.9-6.64c-.27-.14-1.58-.78-1.83-.87s-.42-.14-.6.14c-.18.27-.69.86-.84 1.04s-.31.2-.58.07a7.21 7.21 0 0 1-2.12-1.31 7.9 7.9 0 0 1-1.46-1.81c-.15-.27 0-.42.11-.55l.32-.38c.11-.14.15-.24.22-.4s.04-.31-.02-.44c-.07-.14-.6-1.45-.82-1.98-.22-.53-.44-.46-.6-.47h-.51c-.16 0-.42.06-.64.31s-.84.82-.84 2c0 1.18.86 2.32.98 2.48.12.16 1.7 2.6 4.12 3.64.58.25 1.03.4 1.38.52.58.18 1.1.16 1.51.1.46-.07 1.58-.65 1.8-1.28.22-.63.22-1.17.15-1.28-.07-.11-.25-.18-.52-.32Z"/></svg>
+              <WhatsAppIcon />
               WA
             </a>
             <a href="https://instagram.com/ikyyofc" target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7Zm5 3.5A5.5 5.5 0 1 1 6.5 13 5.5 5.5 0 0 1 12 7.5Zm0 2A3.5 3.5 0 1 0 15.5 13 3.5 3.5 0 0 0 12 9.5Zm5.75-2.9a.85.85 0 1 1-.85.85.85.85 0 0 1 .85-.85Z"/></svg>
+              <InstagramIcon />
               IG
             </a>
             <a href="https://github.com/ikyyyofc" target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.18-3.37-1.18a2.66 2.66 0 0 0-1.11-1.47c-.9-.61.07-.6.07-.6a2.1 2.1 0 0 1 1.53 1.03 2.13 2.13 0 0 0 2.91.83 2.14 2.14 0 0 1 .63-1.35c-2.22-.25-4.55-1.11-4.55-4.95A3.88 3.88 0 0 1 6 7.69a3.6 3.6 0 0 1 .1-2.65s.84-.27 2.75 1.02a9.44 9.44 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.37.84.41 1.8.1 2.65a3.88 3.88 0 0 1 1.03 2.69c0 3.85-2.33 4.7-4.55 4.95a2.4 2.4 0 0 1 .69 1.86v2.76c0 .26.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+              <GitHubIcon />
               GitHub
             </a>
           </div>
@@ -445,7 +445,7 @@ export default function App() {
       </main>
       {showScrollDown && (
         <button className="scroll-down" aria-label="Scroll to bottom" title="Scroll to bottom" onClick={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}>
-          ↓
+          <ChevronDownIcon />
         </button>
       )}
 
@@ -467,7 +467,7 @@ export default function App() {
               aria-label={loading ? 'Hentikan respons' : 'Kirim pesan'}
               title={loading ? 'Hentikan respons' : 'Kirim pesan'}
             >
-              {loading ? '■' : '➤'}
+              {loading ? <StopIcon /> : <SendIcon />}
             </button>
           </div>
         </div>
