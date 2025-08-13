@@ -4,7 +4,5 @@
       "runtime": "nodejs18.x"
     }
   },
-  "ignoreCommand": "echo ok",
   "cleanUrls": true
 }
-
