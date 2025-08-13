@@ -30,7 +30,7 @@ export const GREETING_INSTRUCTION = getEnv(
 // Helper to prepend the system prompt consistently
 export function withSystemPrompt(messages = []) {
     return [
-        { role: "developer", content: SYSTEM_PROMPT },
+        { role: "system", content: SYSTEM_PROMPT },
         ...(Array.isArray(messages) ? messages : [])
     ];
 }
