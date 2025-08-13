@@ -1,15 +1,31 @@
 // Centralized AI configuration
 // You can override most values via environment variables.
+// Safe for both Node and browser imports (guards process.env).
 
-export const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-5-chat-latest";
+const getEnv = (key, fallback) => {
+    try {
+        if (typeof process !== 'undefined' && process?.env && key in process.env) {
+            return process.env[key]
+        }
+    } catch {}
+    return fallback
+}
+
+export const DEFAULT_MODEL = getEnv('OPENAI_MODEL', "gpt-5-chat-latest");
 
 export const SYSTEM_PROMPT =
-    process.env.SYSTEM_PROMPT ||
-    "Kamu adalah asisten AI yang membantu dengan gaya ringkas dan ramah dalam Bahasa Indonesia.";
+    getEnv('SYSTEM_PROMPT',
+        "Kamu adalah asisten AI yang membantu dengan gaya ringkas dan ramah dalam Bahasa Indonesia.");
 
 // Whether to prefer streaming in clients
 export const ENABLE_STREAMING =
-    (process.env.ENABLE_STREAMING || "true").toLowerCase() !== "false";
+    String(getEnv('ENABLE_STREAMING', "true")).toLowerCase() !== "false";
+
+// Instruction used to generate the very first greeting
+export const GREETING_INSTRUCTION = getEnv(
+    'GREETING_INSTRUCTION',
+    'Berikan sapaan pembuka yang singkat, ramah, dan membantu untuk menyambut pengguna baru. Gunakan Bahasa Indonesia.'
+)
 
 // Helper to prepend the system prompt consistently
 export function withSystemPrompt(messages = []) {

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Message from './components/Message.jsx'
 import { BotIcon } from './components/Icons.jsx'
+import { GREETING_INSTRUCTION } from '../config.js'
 
 function Avatar({ kind }) {
   return (
@@ -10,8 +11,7 @@ function Avatar({ kind }) {
   )
 }
 
-// Instruction used to generate the very first greeting
-const GREETING_INSTRUCTION = 'Berikan sapaan pembuka yang singkat, ramah, dan membantu untuk menyambut pengguna baru. Gunakan Bahasa Indonesia.'
+// Greeting instruction moved to config.js
 
 export default function App() {
   const [messages, setMessages] = useState([])
