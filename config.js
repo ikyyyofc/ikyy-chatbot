@@ -7,22 +7,6 @@ export const SYSTEM_PROMPT =
     process.env.SYSTEM_PROMPT ||
     "Kamu adalah asisten AI yang membantu dengan gaya ringkas dan ramah dalam Bahasa Indonesia.";
 
-// Sampling parameters
-export const TEMPERATURE =
-    process.env.OPENAI_TEMPERATURE !== undefined
-        ? Number(process.env.OPENAI_TEMPERATURE)
-        : 2;
-
-export const TOP_P =
-    process.env.OPENAI_TOP_P !== undefined
-        ? Number(process.env.OPENAI_TOP_P)
-        : undefined;
-
-export const MAX_TOKENS =
-    process.env.OPENAI_MAX_TOKENS !== undefined
-        ? Number(process.env.OPENAI_MAX_TOKENS)
-        : undefined;
-
 // Whether to prefer streaming in clients
 export const ENABLE_STREAMING =
     (process.env.ENABLE_STREAMING || "true").toLowerCase() !== "false";
@@ -37,11 +21,8 @@ export function withSystemPrompt(messages = []) {
 
 // Build OpenAI call options in one place
 export function buildOpenAIOptions({
-    model = DEFAULT_MODEL,
-    temperature = TEMPERATURE
+    model = DEFAULT_MODEL
 } = {}) {
-    const opts = { model, temperature };
-    if (TOP_P !== undefined) opts.top_p = TOP_P;
-    if (MAX_TOKENS !== undefined) opts.max_tokens = MAX_TOKENS;
+    const opts = { model };
     return opts;
 }
