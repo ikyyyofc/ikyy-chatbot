@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Message from './components/Message.jsx'
+import { BotIcon } from './components/Icons.jsx'
 
 function Avatar({ kind }) {
   return (
@@ -18,7 +19,6 @@ export default function App() {
   const [messages, setMessages] = useState([initialAssistantGreeting])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const MODEL = 'gpt-5-chat-latest'
   const [controller, setController] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
@@ -123,7 +123,7 @@ export default function App() {
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMsg], model: MODEL }),
+        body: JSON.stringify({ messages: [...messages, userMsg] }),
         signal: ac.signal
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
@@ -191,7 +191,7 @@ export default function App() {
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: baseHistory, model: MODEL }),
+        body: JSON.stringify({ messages: baseHistory }),
         signal: ac.signal
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
@@ -240,7 +240,7 @@ export default function App() {
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, model: MODEL }),
+        body: JSON.stringify({ messages: history }),
         signal: ac.signal
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
@@ -330,7 +330,7 @@ export default function App() {
             <div key={i}>
               {showTyping ? (
                 <div className="msg assistant">
-                  <div className="avatar assistant"><span className="avatar-emoji">🤖</span></div>
+                  <div className="avatar assistant"><BotIcon /></div>
                   <div className="bubble typing"><span className="dot" /><span className="dot" /><span className="dot" /></div>
                   <div className="spacer" />
                 </div>

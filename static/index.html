@@ -12,11 +12,6 @@
       <header class="header">
         <div class="title">ChatGPT-like</div>
         <div class="controls">
-          <select id="model">
-            <option value="gpt-4o-mini" selected>gpt-4o-mini</option>
-            <option value="gpt-4o">gpt-4o</option>
-            <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-          </select>
           <button class="secondary" id="reset">Reset</button>
         </div>
       </header>
@@ -34,7 +29,7 @@
       const input = document.getElementById('input')
       const sendBtn = document.getElementById('send')
       const resetBtn = document.getElementById('reset')
-      const modelSel = document.getElementById('model')
+      // fixed default model on server; no model selector
 
       let loading = false
       let messages = [{ role: 'assistant', content: 'Halo! Aku asisten AI. Ada yang bisa kubantu?' }]
@@ -73,7 +68,7 @@
           const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages, model: modelSel.value })
+            body: JSON.stringify({ messages })
           })
           if (!res.ok) throw new Error('API error ' + res.status)
           const data = await res.json()
@@ -105,4 +100,3 @@
     </script>
   </body>
   </html>
-

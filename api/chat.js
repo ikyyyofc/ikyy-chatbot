@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { DEFAULT_MODEL, withSystemPrompt, buildOpenAIOptions, TEMPERATURE } from '../config.js'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -19,27 +20,23 @@ export default async function handler(req, res) {
     res.setHeader('Allow', 'POST')
     return res.status(405).end('Method Not Allowed')
   }
+  // Credit header
+  try { res.setHeader('X-Credit', 'ikyyofc') } catch {}
   if (!process.env.OPENAI_API_KEY) {
     return res.status(500).json({ error: 'Server missing OPENAI_API_KEY' })
   }
   try {
     const body = await readJson(req)
-    const { messages, model } = body || {}
+    const { messages } = body || {}
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages array is required' })
     }
-    const chosenModel = typeof model === 'string' && model.length ? model : 'gpt-5-chat-latest'
-
-    const system = {
-      role: 'system',
-      content: 'Kamu adalah asisten AI yang membantu dengan gaya ringkas dan ramah dalam Bahasa Indonesia.'
-    }
-    const finalMessages = [system, ...messages]
+    const chosenModel = DEFAULT_MODEL
+    const finalMessages = withSystemPrompt(messages)
 
     const completion = await openai.chat.completions.create({
-      model: chosenModel,
-      messages: finalMessages,
-      temperature: 0.3
+      ...buildOpenAIOptions({ model: chosenModel, temperature: TEMPERATURE }),
+      messages: finalMessages
     })
 
     const reply = completion?.choices?.[0]?.message?.content ?? ''

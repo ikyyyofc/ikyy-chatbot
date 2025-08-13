@@ -1,4 +1,5 @@
 import React, { useState, memo } from 'react'
+import { BotIcon, UserIcon } from './Icons.jsx'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
@@ -128,7 +129,7 @@ function MessageImpl({ role, content, onCopy, onRetry }) {
   return (
     <>
       <div className={`msg ${role}`}>
-        {isAssistant ? <div className="avatar assistant"><span className="avatar-emoji">🤖</span></div> : <div className="spacer" />}
+        {isAssistant ? <div className="avatar assistant"><BotIcon /></div> : <div className="spacer" />}
         <div className="bubble appear" onClick={() => setShowActions(v => !v)}>
           <div className="bubble-inner">
           <ReactMarkdown
@@ -143,7 +144,7 @@ function MessageImpl({ role, content, onCopy, onRetry }) {
           </ReactMarkdown>
           </div>
         </div>
-        {!isAssistant ? <div className="avatar user"><span className="avatar-emoji">🙂</span></div> : <div className="spacer" />}
+        {!isAssistant ? <div className="avatar user"><UserIcon /></div> : <div className="spacer" />}
       </div>
       {(onCopy || (onRetry && isAssistant)) && showActions && (
         <div className={`msg-actions ${role}`}>

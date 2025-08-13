@@ -13,8 +13,23 @@ Minimal chat UI (React + Vite) with an Express proxy to the OpenAI API.
 ## Notes
 
 - The server adds a short system prompt in Indonesian.
-- Default model is `gpt-4o-mini` and can be changed from the dropdown.
-- For simplicity, responses are not streamed yet (can be added later).
+- Default model is `gpt-5-chat-latest` and the client no longer sends a `model` field; the backend uses its default.
+- Streaming responses are supported via `/api/chat/stream`.
+
+## AI Configuration
+
+AI settings are centralized in `config.js` and can be overridden via environment variables:
+
+- `OPENAI_MODEL`: default model (fallback: `gpt-5-chat-latest`).
+- `SYSTEM_PROMPT`: system message prepended to conversations.
+- `OPENAI_TEMPERATURE`: sampling temperature (default: `0.3`).
+- `OPENAI_TOP_P`: nucleus sampling; optional.
+- `OPENAI_MAX_TOKENS`: limit on output tokens; optional.
+- `ENABLE_STREAMING`: client preference for streaming (`true`/`false`, default `true`).
+
+Helpers from `config.js` used by the API:
+- `withSystemPrompt(messages)`: prepends the system prompt.
+- `buildOpenAIOptions({ model, temperature })`: builds OpenAI call options in one place.
 
 ## Deploy to Vercel
 
@@ -46,3 +61,7 @@ vercel --prod        # production deploy
 Notes:
 - In production the React app calls `/api/chat` and `/api/chat/stream` on the same origin, so no CORS needed.
 - The local Express server (`server/index.mjs`) is for local dev or self-hosting; Vercel uses the Serverless Functions in `api/` instead.
+
+## Credits
+
+- ikyyofc

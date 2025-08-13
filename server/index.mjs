@@ -4,12 +4,21 @@ import cors from 'cors'
 import OpenAI from 'openai'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { DEFAULT_MODEL, SYSTEM_PROMPT, TEMPERATURE, TOP_P, MAX_TOKENS, withSystemPrompt, buildOpenAIOptions } from '../config.js'
 
 const app = express()
 const port = process.env.PORT || 3001
 
 app.use(cors())
 app.use(express.json({ limit: '1mb' }))
+
+// Credit header for API responses only
+app.use((req, res, next) => {
+  if (req.path && req.path.startsWith('/api')) {
+    res.setHeader('X-Credit', 'ikyyofc')
+  }
+  next()
+})
 
 // Serve static UI (no bundler)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -33,12 +42,12 @@ app.post('/api/chat/stream', async (req, res) => {
       res.status(500)
       return res.end('Server missing OPENAI_API_KEY')
     }
-    const { messages, model } = req.body || {}
+    const { messages } = req.body || {}
     if (!Array.isArray(messages) || messages.length === 0) {
       res.status(400)
       return res.end('messages array is required')
     }
-    const chosenModel = typeof model === 'string' && model.length ? model : 'gpt-5-chat-latest'
+    const chosenModel = DEFAULT_MODEL
 
     // disable buffering for proxies, enable chunked
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
@@ -47,16 +56,11 @@ app.post('/api/chat/stream', async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no')
     if (typeof res.flushHeaders === 'function') res.flushHeaders()
 
-    const system = {
-      role: 'system',
-      content: 'Kamu adalah asisten AI yang membantu dengan gaya ringkas dan ramah dalam Bahasa Indonesia.'
-    }
-    const finalMessages = [system, ...messages]
+    const finalMessages = withSystemPrompt(messages)
 
     const stream = await openai.chat.completions.create({
-      model: chosenModel,
+      ...buildOpenAIOptions({ model: chosenModel, temperature: TEMPERATURE }),
       messages: finalMessages,
-      temperature: 0.3,
       stream: true
     })
 
@@ -78,23 +82,18 @@ app.post('/api/chat', async (req, res) => {
     if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({ error: 'Server missing OPENAI_API_KEY' })
     }
-    const { messages, model } = req.body || {}
+    const { messages } = req.body || {}
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages array is required' })
     }
-    const chosenModel = typeof model === 'string' && model.length ? model : 'gpt-5-chat-latest'
+    const chosenModel = DEFAULT_MODEL
 
     // Always prepend a helpful system prompt
-    const system = {
-      role: 'system',
-      content: 'Kamu adalah asisten AI yang membantu dengan gaya ringkas dan ramah dalam Bahasa Indonesia.'
-    }
-    const finalMessages = [system, ...messages]
+    const finalMessages = withSystemPrompt(messages)
 
     const completion = await openai.chat.completions.create({
-      model: chosenModel,
-      messages: finalMessages,
-      temperature: 0.3
+      ...buildOpenAIOptions({ model: chosenModel, temperature: TEMPERATURE }),
+      messages: finalMessages
       // For simplicity, not streaming here. Can be upgraded later.
     })
 
