@@ -11,7 +11,7 @@ export const SYSTEM_PROMPT = (
 // Sampling parameters
 export const TEMPERATURE = process.env.OPENAI_TEMPERATURE !== undefined
   ? Number(process.env.OPENAI_TEMPERATURE)
-  : 0.3
+  : 2
 
 export const TOP_P = process.env.OPENAI_TOP_P !== undefined
   ? Number(process.env.OPENAI_TOP_P)
