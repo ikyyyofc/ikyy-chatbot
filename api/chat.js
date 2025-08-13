@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { DEFAULT_MODEL, withSystemPrompt, buildOpenAIOptions, TEMPERATURE } from '../config.js'
+import { DEFAULT_MODEL, withSystemPrompt, buildOpenAIOptions } from '../config.js'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     const finalMessages = withSystemPrompt(messages)
 
     const completion = await openai.chat.completions.create({
-      ...buildOpenAIOptions({ model: chosenModel, temperature: TEMPERATURE }),
+      ...buildOpenAIOptions({ model: chosenModel }),
       messages: finalMessages
     })
 
