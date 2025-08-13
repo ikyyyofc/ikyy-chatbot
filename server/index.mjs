@@ -4,7 +4,7 @@ import cors from 'cors'
 import OpenAI from 'openai'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { DEFAULT_MODEL, SYSTEM_PROMPT, TEMPERATURE, TOP_P, MAX_TOKENS, withSystemPrompt, buildOpenAIOptions } from '../config.js'
+import { DEFAULT_MODEL, SYSTEM_PROMPT, withSystemPrompt, buildOpenAIOptions } from '../config.js'
 
 const app = express()
 const port = process.env.PORT || 3001
