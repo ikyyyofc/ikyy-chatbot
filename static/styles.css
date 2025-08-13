@@ -1,0 +1,26 @@
+/* Copied from src/styles.css */
+:root { --bg:#0f172a; --panel:#111827; --muted:#94a3b8; --text:#e5e7eb; --accent:#22c55e; --accent-strong:#16a34a; --bubble-user:#2563eb; --bubble-assistant:#374151 }
+*{box-sizing:border-box} html,body,#root{height:100%} body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";background:var(--bg);color:var(--text)}
+.app{display:grid;grid-template-rows:auto 1fr auto;height:100%;max-width:960px;margin:0 auto}
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1f2937;background:var(--panel);position:sticky;top:0;z-index:10}
+.title{font-weight:600}.controls{display:flex;gap:8px;align-items:center}
+.controls select{background:#0b1220;color:var(--text);border:1px solid #243244;border-radius:8px;padding:6px 8px}
+.controls .secondary{background:transparent;color:var(--muted);border:1px solid #243244;border-radius:8px;padding:6px 10px;cursor:pointer}
+.controls .secondary:hover{color:var(--text);border-color:#334155}
+.chat{padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.msg{display:flex;width:100%}.msg.user{justify-content:flex-end}.msg.assistant{justify-content:flex-start}
+.bubble{max-width:min(80%,720px);padding:10px 12px;border-radius:14px;line-height:1.5}
+.msg.user .bubble{background:var(--bubble-user);color:#fff;border-bottom-right-radius:4px}
+.msg.assistant .bubble{background:var(--bubble-assistant);color:var(--text);border-bottom-left-radius:4px}
+.composer{display:grid;grid-template-columns:1fr auto;gap:10px;padding:12px 16px;border-top:1px solid #1f2937;background:var(--panel)}
+.composer textarea{width:100%;resize:none;max-height:160px;overflow:auto;background:#0b1220;color:var(--text);border:1px solid #243244;border-radius:10px;padding:10px;outline:none}
+.composer textarea:focus{border-color:#334155}
+.composer button{background:var(--accent);color:#0a0f1a;border:none;border-radius:10px;padding:0 16px;font-weight:600;cursor:pointer}
+.composer button:disabled{opacity:.6;cursor:not-allowed}
+.composer button:not(:disabled):hover{background:var(--accent-strong)}
+.typing{display:inline-flex;gap:6px;align-items:center}
+.dot{width:6px;height:6px;background:#9ca3af;border-radius:9999px;animation:blink 1.4s infinite both}
+.dot:nth-child(2){animation-delay:.2s}
+.dot:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+
