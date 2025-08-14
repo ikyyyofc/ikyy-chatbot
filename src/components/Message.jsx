@@ -32,7 +32,7 @@ import diff from 'highlight.js/lib/languages/diff'
 import dockerfile from 'highlight.js/lib/languages/dockerfile'
 import plaintext from 'highlight.js/lib/languages/plaintext'
 
-// Register a curated set of languages for reliable highlighting
+// Register semua bahasa yang ingin didukung
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('js', javascript)
 hljs.registerLanguage('typescript', typescript)
@@ -67,50 +67,70 @@ hljs.registerLanguage('diff', diff)
 hljs.registerLanguage('dockerfile', dockerfile)
 hljs.registerLanguage('plaintext', plaintext)
 
-const autodetectSubset = ['javascript','typescript','python','bash','json','html','css','yaml','go','rust','java','csharp','cpp','kotlin','swift','php','ruby','sql','ini','diff','dockerfile']
-
 function Code({ inline, className, children, node }) {
   const raw = String(children ?? '')
+  
+  // [FILTER 1] Nonaktifkan SEMUA inline code (backtick tunggal)
   if (inline) {
-    return <code className="inline-code">{raw}</code>
+    return <>{raw}</>
   }
+
+  // Ekstrak bahasa dari className (e.g., "language-html")
   const match = /language-([\w-]+)/.exec(className || '')
-  let language = match?.[1]
-  // Parse optional meta for filename/title
-  const meta = node && node.data && node.data.meta ? String(node.data.meta) : ''
-  const fileMatch = /(?:title|filename)=(?:"([^"]+)"|'([^']+)'|([^\s]+))/.exec(meta || '')
-  const fileLabel = fileMatch ? (fileMatch[1] || fileMatch[2] || fileMatch[3]) : ''
+  const language = match?.[1]?.toLowerCase()
+
+  // [FILTER 2] Hanya terima blok kode dengan tag bahasa (ADA tag)
+  if (!language) {
+    return <>{raw}</>
+  }
+
+  // [AUTO-DETECTION] Gunakan bahasa spesifik jika terdaftar, 
+  // atau deteksi otomatis untuk SEMUA bahasa yang didukung
   let html
+  let detectedLang = language
+  
   try {
-    if (language && hljs.getLanguage(language)) {
+    if (hljs.getLanguage(language)) {
+      // Bahasa terdaftar → gunakan langsung
       html = hljs.highlight(raw, { language }).value
     } else {
-      const res = hljs.highlightAuto(raw, { subset: autodetectSubset })
+      // Bahasa TIDAK terdaftar → deteksi otomatis untuk SEMUA bahasa
+      const res = hljs.highlightAuto(raw)
       html = res.value
-      language = language || res.language || 'text'
+      detectedLang = res.language || 'text'
     }
   } catch {
-    html = raw.replace(/[&<>"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]))
-    language = language || 'text'
+    // Fallback jika terjadi error
+    html = raw.replace(/[&<>"]/g, s => ({'&':'&amp;','<':'<','>':'>','"':'&quot;'}[s]))
+    detectedLang = 'text'
   }
+
+  // Ambil metadata (filename/title)
+  const meta = node?.data?.meta ? String(node.data.meta) : ''
+  const fileMatch = /(?:title|filename)=(?:"([^"]+)"|'([^']+)'|([^\s]+))/.exec(meta || '')
+  const fileLabel = fileMatch ? (fileMatch[1] || fileMatch[2] || fileMatch[3]) : ''
 
   async function onCopy() {
     try { await navigator.clipboard.writeText(raw) } catch {}
   }
+  
   return (
     <pre className="codeblock">
       <div className="code-header">
-        <span className="lang" title={fileLabel || language}>{fileLabel || language}</span>
+        <span className="lang" title={fileLabel || detectedLang}>
+          {fileLabel || detectedLang}
+        </span>
         <button className="action" onClick={onCopy} title="Copy code" aria-label="Copy code">
           <CopyIcon />
         </button>
       </div>
-      <code className={`hljs language-${language}`} dangerouslySetInnerHTML={{ __html: html }} />
+      <code 
+        className={`hljs language-${detectedLang}`} 
+        dangerouslySetInnerHTML={{ __html: html }} 
+      />
     </pre>
   )
 }
-
-// Default list rendering
 
 function normalizeMathDelimiters(text) {
   if (!text) return text
