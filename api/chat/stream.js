@@ -1,12 +1,5 @@
-import OpenAI from "openai";
-import {
-    DEFAULT_MODEL,
-    withSystemPrompt,
-    buildOpenAIOptions
-} from "../../config.js";
+import { withSystemPrompt } from "../../config.js";
 import { chat } from "../../lib/vertex.js"
-
-/*const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });*/
 
 async function readJson(req) {
     if (req.body && typeof req.body === "object") return req.body;
@@ -138,7 +131,8 @@ export default async function handler(req, res) {
     } catch (err) {
         console.error("handler error", err);
         try {
-            res.end();
+            if (!res.headersSent) res.status(500);
+            res.end('Streaming error: ' + (err?.message || 'unknown error'));
         } catch {}
     }
 }

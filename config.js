@@ -1,6 +1,6 @@
-// Centralized AI configuration
-// You can override most values via environment variables.
-// Safe for both Node and browser imports (guards process.env).
+// Konfigurasi AI terpusat (Vertex-only)
+// Dapat dioverride via environment variables.
+// Aman untuk import di Node dan browser (guard process.env).
 
 const getEnv = (key, fallback) => {
     try {
@@ -11,15 +11,10 @@ const getEnv = (key, fallback) => {
     return fallback
 }
 
-export const DEFAULT_MODEL = getEnv('OPENAI_MODEL', "gpt-5-chat-latest");
-
-export const SYSTEM_PROMPT =
-    getEnv('SYSTEM_PROMPT',
-        "Kamu adalah asisten AI yang membantu dengan gaya ringkas dan ramah dalam Bahasa Indonesia.");
-
-// Whether to prefer streaming in clients
-export const ENABLE_STREAMING =
-    String(getEnv('ENABLE_STREAMING', "true")).toLowerCase() !== "false";
+export const SYSTEM_PROMPT = getEnv(
+    'SYSTEM_PROMPT',
+    "Kamu adalah asisten AI yang membantu dengan gaya ringkas dan ramah dalam Bahasa Indonesia."
+);
 
 // Instruction used to generate the very first greeting
 export const GREETING_INSTRUCTION = getEnv(
@@ -33,12 +28,4 @@ export function withSystemPrompt(messages = []) {
         { role: "system", content: SYSTEM_PROMPT },
         ...(Array.isArray(messages) ? messages : [])
     ];
-}
-
-// Build OpenAI call options in one place
-export function buildOpenAIOptions({
-    model = DEFAULT_MODEL
-} = {}) {
-    const opts = { model };
-    return opts;
 }
