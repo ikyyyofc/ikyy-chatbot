@@ -34,6 +34,7 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming }) => {
   const textareaRef = useRef(null);
   const inputRef = useRef('');
   const canSendRef = useRef(false);
+  const [canSend, setCanSend] = useState(false); // trigger re-render for disabled state
   const rafRef = useRef(null);
   
   // Fungsi auto-grow yang sangat efisien
@@ -72,27 +73,20 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming }) => {
   const handleInput = useCallback((e) => {
     const value = e.target.value;
     inputRef.current = value;
-    canSendRef.current = value.trim().length > 0 && !loading;
+    const nextCanSend = value.trim().length > 0;
+    canSendRef.current = nextCanSend;
+    setCanSend(nextCanSend);
     
     // Resize hanya jika diperlukan
     if (value.length % 5 === 0 || value.includes('\n')) {
       resizeTextarea();
     }
-  }, [loading, resizeTextarea]);
+  }, [resizeTextarea]);
 
   const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (canSendRef.current) {
-        sendMessage(inputRef.current);
-        // Reset textarea dengan manipulasi DOM langsung
-        e.target.value = '';
-        inputRef.current = '';
-        canSendRef.current = false;
-        e.target.style.height = 'auto';
-      }
-    }
-  }, [sendMessage]);
+    // Biarkan Enter membuat baris baru secara default.
+    // Tidak mengirim pesan melalui Enter.
+  }, []);
 
   // Optimasi: Gunakan microtask untuk resize terakhir
   useEffect(() => {
@@ -129,13 +123,16 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming }) => {
           if (canSendRef.current) {
             sendMessage(inputRef.current);
             // Reset textarea dengan manipulasi DOM langsung
-            textareaRef.current.value = '';
+            if (textareaRef.current) {
+              textareaRef.current.value = '';
+              textareaRef.current.style.height = 'auto';
+            }
             inputRef.current = '';
             canSendRef.current = false;
-            textareaRef.current.style.height = 'auto';
+            setCanSend(false);
           }
         }}
-        disabled={!canSendRef.current}
+        disabled={loading ? false : !canSend}
         aria-label={loading ? 'Hentikan respons' : 'Kirim pesan'}
         title={loading ? 'Hentikan respons' : 'Kirim pesan'}
         // Optimasi kritis: Promosikan ke layer GPU
