@@ -32,7 +32,7 @@ function Avatar({ kind }) {
 }
 
 // Komponen input yang benar-benar terisolasi dari state utama
-const InputComposer = memo(({ loading, sendMessage, stopStreaming }) => {
+const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusComposer }) => {
   const textareaRef = useRef(null);
   const inputRef = useRef('');
   const canSendRef = useRef(false);
@@ -109,6 +109,7 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming }) => {
         autoCorrect="off"
         autoCapitalize="off"
         autoComplete="off"
+        onFocus={onFocusComposer}
         onInput={handleInput}
         onKeyDown={handleKeyDown}
         // Optimasi kritis: Promosikan ke layer GPU
@@ -168,9 +169,9 @@ export default function App() {
   const streamIdRef = useRef(0)
   const activeAssistantIndexRef = useRef(null)
   const nextIdRef = useRef(1)
-  // Buffer untuk mengumpulkan chunk sebelum pembaruan state
-  const bufferRef = useRef('')
-  const bufferTimeoutRef = useRef(null)
+  // Live streaming buffer to avoid full-list state updates per chunk
+  const liveAppendRef = useRef('')
+  const [liveTick, setLiveTick] = useState(0)
 
   // Simpan referensi ke messages untuk akses tanpa trigger render
   const messagesRef = useRef(messages)
@@ -187,6 +188,8 @@ export default function App() {
   useEffect(() => {
     document.documentElement.datasetTheme = 'dark'
   }, [])
+
+  // no-op
 
   // Generate the initial assistant greeting via streaming once on mount
   useEffect(() => {
@@ -220,7 +223,7 @@ export default function App() {
     }
   }, [menuOpen])
 
-  // Fungsi untuk memperbarui pesan dengan buffering
+  // Fungsi untuk memperbarui isi pesan pada index tertentu
   const updateMessageContent = useCallback((index, content) => {
     setMessages(prev => {
       const copy = [...prev]
@@ -231,43 +234,36 @@ export default function App() {
     })
   }, [])
 
-  // Fungsi untuk memproses buffer
-  const processBuffer = useCallback(() => {
-    if (bufferRef.current && bufferRef.current.length > 0) {
-      const currentMessages = messagesRef.current
-      const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (currentMessages.length - 1)
-      const lastMessage = currentMessages[targetIndex]
-      
-      if (lastMessage && lastMessage.role === 'assistant') {
-        const newContent = (lastMessage.content || '') + bufferRef.current
-        updateMessageContent(targetIndex, newContent)
+  // Commit buffered streaming text into state (called on stream end)
+  const flushLiveToState = useCallback((targetIndex) => {
+    const add = liveAppendRef.current
+    if (!add) return
+    setMessages(prev => {
+      const copy = [...prev]
+      const idx = Math.min(targetIndex, copy.length - 1)
+      const last = copy[idx]
+      if (last?.role === 'assistant') {
+        copy[idx] = { ...last, content: (last.content || '') + add }
       }
-      bufferRef.current = ''
-    }
-    
-    if (bufferTimeoutRef.current) {
-      clearTimeout(bufferTimeoutRef.current)
-      bufferTimeoutRef.current = null
-    }
-  }, [updateMessageContent])
+      return copy
+    })
+    liveAppendRef.current = ''
+  }, [])
 
-  // Fungsi untuk menambahkan chunk ke buffer
-  const addToBuffer = useCallback((chunk) => {
-    bufferRef.current += chunk
-    
-    // Proses buffer setiap 16ms (~60fps)
-    if (!bufferTimeoutRef.current) {
-      bufferTimeoutRef.current = setTimeout(() => {
-        processBuffer()
-      }, 16)
-    }
-  }, [processBuffer])
+  // Buffer chunk streaming dan repaint baris aktif segera
+  const appendToAssistant = useCallback((chunk) => {
+    if (!chunk) return
+    liveAppendRef.current += chunk
+    setLiveTick(t => t + 1)
+  }, [])
 
   const sendMessage = useCallback((text) => {
     if (!text.trim() || loading) return
     const userMsg = { id: nextIdRef.current++, role: 'user', content: text.trim() }
     // Add user and a placeholder assistant message
     setMessages(prev => {
+      // reset live buffer for fresh stream render
+      liveAppendRef.current = ''
       const newList = [...prev, userMsg, { id: nextIdRef.current++, role: 'assistant', content: '' }]
       // placeholder index is prev.length + 1
       activeAssistantIndexRef.current = prev.length + 1
@@ -292,13 +288,6 @@ export default function App() {
         const decoder = new TextDecoder()
         let gotFirstChunk = false
         
-        // Reset buffer
-        bufferRef.current = ''
-        if (bufferTimeoutRef.current) {
-          clearTimeout(bufferTimeoutRef.current)
-          bufferTimeoutRef.current = null
-        }
-        
         while (true) {
           const { value, done } = await reader.read()
           if (done) break
@@ -309,16 +298,9 @@ export default function App() {
             break
           }
           if (!gotFirstChunk && chunk) gotFirstChunk = true
-          
-          // Tambahkan ke buffer alih-alih langsung update state
-          addToBuffer(chunk)
+          appendToAssistant(chunk)
         }
         
-        // Pastikan semua buffer diproses sebelum selesai
-        if (bufferTimeoutRef.current) {
-          clearTimeout(bufferTimeoutRef.current)
-        }
-        processBuffer()
       } catch (err) {
         console.error(err)
         if (err?.name !== 'AbortError') {
@@ -335,18 +317,21 @@ export default function App() {
         }
       } finally {
         if (myStreamId === streamIdRef.current) {
+          const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
+          flushLiveToState(targetIndex)
           setLoading(false)
           setController(null)
           activeAssistantIndexRef.current = null
         }
       }
     })();
-  }, [loading, addToBuffer, processBuffer])
+  }, [loading, appendToAssistant, flushLiveToState])
 
   async function generateGreeting() {
     // Add a placeholder assistant message and stream the greeting
     setMessages(() => {
       activeAssistantIndexRef.current = 0
+      liveAppendRef.current = ''
       return [{ id: nextIdRef.current++, role: 'assistant', content: '' }]
     })
     setLoading(true)
@@ -366,13 +351,6 @@ export default function App() {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       
-      // Reset buffer
-      bufferRef.current = ''
-      if (bufferTimeoutRef.current) {
-        clearTimeout(bufferTimeoutRef.current)
-        bufferTimeoutRef.current = null
-      }
-      
       while (true) {
         const { value, done } = await reader.read()
         if (done) break
@@ -382,20 +360,16 @@ export default function App() {
           break
         }
         
-        // Tambahkan ke buffer alih-alih langsung update state
-        addToBuffer(chunk)
+        appendToAssistant(chunk)
       }
       
-      // Pastikan semua buffer diproses sebelum selesai
-      if (bufferTimeoutRef.current) {
-        clearTimeout(bufferTimeoutRef.current)
-      }
-      processBuffer()
     } catch (err) {
       console.error(err)
       setMessages([{ id: nextIdRef.current++, role: 'assistant', content: 'Halo! Ada yang bisa kubantu hari ini?' }])
     } finally {
       if (myStreamId === streamIdRef.current) {
+        const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
+        flushLiveToState(targetIndex)
         setLoading(false)
         setController(null)
         activeAssistantIndexRef.current = null
@@ -406,19 +380,23 @@ export default function App() {
   function stopStreaming() {
     try { 
       controller?.abort() 
-      // Hapus buffer yang tersisa
-      if (bufferTimeoutRef.current) {
-        clearTimeout(bufferTimeoutRef.current)
-        bufferTimeoutRef.current = null
-      }
-      bufferRef.current = ''
       activeAssistantIndexRef.current = null
     } catch {}
   }
 
-  async function copyMessage(text) {
+  const handleCopy = useCallback(async (text) => {
     try { await navigator.clipboard.writeText(text || '') } catch {}
-  }
+  }, [])
+
+  // Saat fokus ke input, jaga scroll: hanya auto-scroll ke bawah jika memang sedang di bawah
+  const handleComposerFocus = useCallback(() => {
+    try {
+      if (stickRef.current) {
+        const lastIndex = Math.max(0, messagesRef.current.length - 1)
+        virtuosoRef.current?.scrollToIndex({ index: lastIndex, align: 'end' })
+      }
+    } catch {}
+  }, [])
 
   async function retryResponseAtIndex(targetIndex) {
     if (loading) return
@@ -430,6 +408,7 @@ export default function App() {
     const baseHistory = lastUserIndex >= 0 ? messages.slice(0, lastUserIndex + 1) : []
     setMessages(() => {
       activeAssistantIndexRef.current = baseHistory.length
+      liveAppendRef.current = ''
       return [...baseHistory, { id: nextIdRef.current++, role: 'assistant', content: '' }]
     })
     setLoading(true)
@@ -439,14 +418,6 @@ export default function App() {
       setController(ac)
       myStreamId = streamIdRef.current + 1
       streamIdRef.current = myStreamId
-      
-      // Reset buffer
-      bufferRef.current = ''
-      if (bufferTimeoutRef.current) {
-        clearTimeout(bufferTimeoutRef.current)
-        bufferTimeoutRef.current = null
-      }
-      
       // Truncate server session to this base (by user-count) and retry
       const keepUserCount = baseHistory.filter(m => m.role === 'user').length
       const res = await fetch('/api/chat/stream', {
@@ -466,16 +437,9 @@ export default function App() {
           try { await reader.cancel() } catch {}
           break
         }
-        
-        // Tambahkan ke buffer alih-alih langsung update state
-        addToBuffer(chunk)
+        appendToAssistant(chunk)
       }
       
-      // Pastikan semua buffer diproses sebelum selesai
-      if (bufferTimeoutRef.current) {
-        clearTimeout(bufferTimeoutRef.current)
-      }
-      processBuffer()
     } catch (err) {
       console.error(err)
       // Isi placeholder dengan pesan error jika gagal
@@ -490,6 +454,8 @@ export default function App() {
       })
     } finally {
       if (myStreamId === streamIdRef.current) {
+        const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
+        flushLiveToState(targetIndex)
         setLoading(false)
         setController(null)
         activeAssistantIndexRef.current = null
@@ -516,6 +482,7 @@ export default function App() {
     const baseHistory = lastUserIndex >= 0 ? current.slice(0, lastUserIndex + 1) : []
     setMessages(() => {
       activeAssistantIndexRef.current = baseHistory.length
+      liveAppendRef.current = ''
       return [...baseHistory, { id: nextIdRef.current++, role: 'assistant', content: '' }]
     })
     setLoading(true)
@@ -525,12 +492,6 @@ export default function App() {
       setController(ac)
       myStreamId = streamIdRef.current + 1
       streamIdRef.current = myStreamId
-      // Reset buffer
-      bufferRef.current = ''
-      if (bufferTimeoutRef.current) {
-        clearTimeout(bufferTimeoutRef.current)
-        bufferTimeoutRef.current = null
-      }
       const keepUserCount = baseHistory.filter(m => m.role === 'user').length
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
@@ -549,10 +510,9 @@ export default function App() {
           try { await reader.cancel() } catch {}
           break
         }
-        addToBuffer(chunk)
+        appendToAssistant(chunk)
       }
-      if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current)
-      processBuffer()
+      
     } catch (err) {
       console.error(err)
       // Isi placeholder dengan pesan error jika gagal
@@ -567,11 +527,17 @@ export default function App() {
       })
     } finally {
       if (myStreamId === streamIdRef.current) {
+        const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
+        flushLiveToState(targetIndex)
         setLoading(false)
         setController(null)
+        activeAssistantIndexRef.current = null
       }
     }
-  }, [loading, retryLastResponse, addToBuffer, processBuffer, sessionId])
+  }, [loading, retryLastResponse, appendToAssistant, sessionId, flushLiveToState])
+
+  // Stable handler to trigger retry by id from Message rows
+  const handleRetry = useCallback((id) => { (async () => { await retryAssistantById(id) })() }, [retryAssistantById])
 
   async function retryLastResponse() {
     if (loading) return
@@ -584,7 +550,12 @@ export default function App() {
     if (lastUserIndex === -1 && lastIndex !== 0) return
     const baseHistory = lastUserIndex >= 0 ? messages.slice(0, lastUserIndex + 1) : []
     // Reset conversation to base history and append fresh placeholder
-    setMessages([...baseHistory, { id: nextIdRef.current++, role: 'assistant', content: '' }])
+    setMessages(() => {
+      activeAssistantIndexRef.current = baseHistory.length
+      // reset live buffer for fresh stream render
+      liveAppendRef.current = ''
+      return [...baseHistory, { id: nextIdRef.current++, role: 'assistant', content: '' }]
+    })
     setLoading(true)
     let myStreamId = 0
     try {
@@ -592,14 +563,6 @@ export default function App() {
       setController(ac)
       myStreamId = streamIdRef.current + 1
       streamIdRef.current = myStreamId
-      
-      // Reset buffer
-      bufferRef.current = ''
-      if (bufferTimeoutRef.current) {
-        clearTimeout(bufferTimeoutRef.current)
-        bufferTimeoutRef.current = null
-      }
-      
       // Ask server to regenerate from last user in session (keeps payload small)
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
@@ -618,16 +581,9 @@ export default function App() {
           try { await reader.cancel() } catch {}
           break
         }
-        
-        // Tambahkan ke buffer alih-alih langsung update state
-        addToBuffer(chunk)
+        appendToAssistant(chunk)
       }
       
-      // Pastikan semua buffer diproses sebelum selesai
-      if (bufferTimeoutRef.current) {
-        clearTimeout(bufferTimeoutRef.current)
-      }
-      processBuffer()
     } catch (err) {
       console.error(err)
       // Isi placeholder dengan pesan error jika gagal
@@ -642,8 +598,11 @@ export default function App() {
       })
     } finally {
       if (myStreamId === streamIdRef.current) {
+        const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
+        flushLiveToState(targetIndex)
         setLoading(false)
         setController(null)
+        activeAssistantIndexRef.current = null
       }
     }
   }
@@ -652,12 +611,6 @@ export default function App() {
     // Abort any in-flight stream and invalidate stale updates
     try { 
       controller?.abort() 
-      // Hapus buffer yang tersisa
-      if (bufferTimeoutRef.current) {
-        clearTimeout(bufferTimeoutRef.current)
-        bufferTimeoutRef.current = null
-      }
-      bufferRef.current = ''
     } catch {}
     streamIdRef.current += 1
     // Start a fresh greeting
@@ -723,8 +676,12 @@ export default function App() {
         components={{ Scroller }}
         itemContent={(i, m) => {
           const isLast = i === messages.length - 1
-          const showTyping = m.role === 'assistant' && isLast && loading && !m.content
+          const isActiveAssistant = m.role === 'assistant' && (i === (typeof activeAssistantIndexRef.current === 'number' ? activeAssistantIndexRef.current : -1))
+          const showTyping = m.role === 'assistant' && isLast && loading && !m.content && !liveAppendRef.current
           const hasPrevUser = i > 0 ? messages.slice(0, i).some(x => x.role === 'user') : false
+          const liveExtra = isActiveAssistant ? (liveAppendRef.current || '') : ''
+          const contentToShow = (m.content || '') + liveExtra
+          const rowTick = isActiveAssistant ? liveTick : 0
           return (
             <div className="msg-row" key={m?.id ?? `msg-${i}-${m.role}`}>
               {showTyping ? (
@@ -735,10 +692,14 @@ export default function App() {
                 </div>
               ) : (
                 <Message
+                  id={m.id}
                   role={m.role}
-                  content={m.content}
-                  onCopy={() => copyMessage(m.content)}
-                  onRetry={m.role === 'assistant' && hasPrevUser ? () => { (async () => { await retryAssistantById(m.id) })() } : undefined}
+                  content={contentToShow}
+                  tick={rowTick}
+                  onCopy={handleCopy}
+                  onRetry={m.role === 'assistant' && hasPrevUser ? handleRetry : undefined}
+                  msgId={m.id}
+                  actionsDisabled={loading}
                 />
               )}
             </div>
@@ -761,6 +722,7 @@ export default function App() {
             loading={loading}
             sendMessage={sendMessage}
             stopStreaming={stopStreaming}
+            onFocusComposer={handleComposerFocus}
           />
         </div>
       </footer>

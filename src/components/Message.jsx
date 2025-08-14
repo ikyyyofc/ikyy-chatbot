@@ -143,7 +143,7 @@ function normalizeMathDelimiters(text) {
   return text
 }
 
-function MessageImpl({ role, content, onCopy, onRetry }) {
+function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, actionsDisabled = false }) {
   const isAssistant = role === 'assistant'
   const [showActions, setShowActions] = useState(false)
   return (
@@ -172,12 +172,12 @@ function MessageImpl({ role, content, onCopy, onRetry }) {
           <div className="spacer" />
           <div className="actions">
             {onRetry && isAssistant && (
-              <button className="action" onClick={onRetry} title="Regenerate" aria-label="Regenerate">
+              <button className="action" disabled={actionsDisabled} onClick={() => { if (!actionsDisabled) onRetry(msgId ?? id) }} title="Regenerate" aria-label="Regenerate">
                 <RetryIcon />
               </button>
             )}
             {onCopy && (
-              <button className="action" onClick={onCopy} title="Copy" aria-label="Copy">
+              <button className="action" disabled={actionsDisabled} onClick={() => { if (!actionsDisabled) onCopy(content) }} title="Copy" aria-label="Copy">
                 <CopyIcon />
               </button>
             )}
@@ -199,8 +199,10 @@ function MessageImpl({ role, content, onCopy, onRetry }) {
 export default memo(
   MessageImpl,
   (prev, next) => (
+    prev.id === next.id &&
     prev.role === next.role &&
     prev.content === next.content &&
+    prev.tick === next.tick &&
     prev.onRetry === next.onRetry &&
     prev.onCopy === next.onCopy
   )

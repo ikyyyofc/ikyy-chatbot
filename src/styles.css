@@ -65,7 +65,7 @@ body::after { content:""; position:fixed; inset:0; pointer-events:none; z-index:
                     linear-gradient(to bottom, rgba(255,255,255,.04) 1px, transparent 1px);
   background-size:28px 28px; opacity:.15 }
 
-.app { display: grid; grid-template-rows: auto 1fr auto; height: 100%; max-width: 980px; margin: 0 auto; padding: 0 12px }
+.app { display: grid; grid-template-rows: auto 1fr auto; height: 100%; height: 100dvh; min-height: 100dvh; max-width: 980px; margin: 0 auto; padding: 0 12px }
 
 .header {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -124,7 +124,7 @@ html[data-theme='light'] .nav-menu a:hover{ background: rgba(2,6,23,.06) }
 .controls .secondary { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.04)); color: var(--text); border: 1px solid var(--panel-border); border-radius: var(--radius-sm); padding: 8px 12px; cursor: pointer; transition: transform .15s ease, filter .15s ease }
 .controls .secondary:hover { color: var(--text); border-color: #334567; transform: translateY(-1px) }
 
-.chat { padding: 14px 12px 8px; overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; -ms-overflow-style: none; scrollbar-width: none; scrollbar-color: transparent transparent; scrollbar-gutter: stable both-edges }
+.chat { padding: 14px 12px 8px; overflow-y: auto; overflow-x: hidden; scroll-behavior: auto; overscroll-behavior: contain; -ms-overflow-style: none; scrollbar-width: none; scrollbar-color: transparent transparent; scrollbar-gutter: stable both-edges }
 .chat::-webkit-scrollbar { width: 0; height: 0; display: none; background: transparent }
 /* Hide any nested scrollbars inside chat (e.g., internal wrappers) */
 .chat * { -ms-overflow-style: none; scrollbar-width: none }
