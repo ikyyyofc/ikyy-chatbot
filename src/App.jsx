@@ -6,7 +6,8 @@ import React, {
   useCallback, 
   useLayoutEffect,
   memo,
-  Fragment
+  Fragment,
+  forwardRef
 } from 'react'
 import Message from './components/Message.jsx'
 import { 
@@ -20,6 +21,7 @@ import {
   StopIcon 
 } from './components/Icons.jsx'
 import { GREETING_INSTRUCTION } from '../config.js'
+import { Virtuoso } from 'react-virtuoso'
 
 function Avatar({ kind }) {
   return (
@@ -148,18 +150,23 @@ InputComposer.displayName = 'InputComposer';
 
 export default function App() {
   const [messages, setMessages] = useState([])
+  const [sessionId] = useState(() => {
+    try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID() } catch {}
+    return 'sess-' + Math.random().toString(36).slice(2) + '-' + Date.now()
+  })
   const [loading, setLoading] = useState(false)
   const [controller, setController] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const menuBtnRef = useRef(null)
   const [showScrollDown, setShowScrollDown] = useState(false)
-  const listRef = useRef(null)
-  const bottomRef = useRef(null)
+  // Virtualized scroller ref
+  const virtuosoRef = useRef(null)
   const stickRef = useRef(true)
   const lastScrollTickRef = useRef(0)
   const greetedRef = useRef(false)
   const streamIdRef = useRef(0)
+  const nextIdRef = useRef(1)
   // Buffer untuk mengumpulkan chunk sebelum pembaruan state
   const bufferRef = useRef('')
   const bufferTimeoutRef = useRef(null)
@@ -170,47 +177,11 @@ export default function App() {
     messagesRef.current = messages
   }, [messages])
 
-  // Track jika user is near bottom; only then auto-stick
-  useEffect(() => {
-    const el = listRef.current
-    if (!el) return
-    const onScroll = () => {
-      const threshold = 80
-      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold
-      stickRef.current = atBottom
-      setShowScrollDown(!atBottom)
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    onScroll()
-    return () => el.removeEventListener('scroll', onScroll)
+  // Virtuoso provides atBottomStateChange; mirror into stickRef/showScrollDown
+  const handleAtBottomChange = useCallback((atBottom) => {
+    stickRef.current = atBottom
+    setShowScrollDown(!atBottom)
   }, [])
-
-  // Auto-scroll to bottom when content updates
-  useEffect(() => {
-    if (!bottomRef.current) return
-    if (stickRef.current) {
-      const behavior = loading ? 'auto' : 'smooth'
-      bottomRef.current.scrollIntoView({ behavior, block: 'end' })
-    }
-  }, [messages, loading])
-
-  // Optimasi: Kurangi frekuensi scroll dengan requestAnimationFrame
-  useEffect(() => {
-    let frameId
-    const handleScroll = () => {
-      if (stickRef.current && bottomRef.current) {
-        bottomRef.current.scrollIntoView({ behavior: 'auto', block: 'end' })
-      }
-    }
-
-    if (loading) {
-      frameId = requestAnimationFrame(handleScroll)
-    }
-
-    return () => {
-      if (frameId) cancelAnimationFrame(frameId)
-    }
-  }, [messages, loading])
 
   useEffect(() => {
     document.documentElement.datasetTheme = 'dark'
@@ -287,19 +258,15 @@ export default function App() {
     if (!bufferTimeoutRef.current) {
       bufferTimeoutRef.current = setTimeout(() => {
         processBuffer()
-        // Lakukan scroll hanya setelah pembaruan buffer
-        if (stickRef.current && bottomRef.current) {
-          bottomRef.current.scrollIntoView({ behavior: 'auto', block: 'end' })
-        }
       }, 16)
     }
   }, [processBuffer])
 
   const sendMessage = useCallback((text) => {
     if (!text.trim() || loading) return
-    const userMsg = { role: 'user', content: text.trim() }
+    const userMsg = { id: nextIdRef.current++, role: 'user', content: text.trim() }
     // Add user and a placeholder assistant message
-    setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '' }])
+    setMessages(prev => [...prev, userMsg, { id: nextIdRef.current++, role: 'assistant', content: '' }])
     setLoading(true)
     let myStreamId = 0
     ;(async () => {
@@ -311,7 +278,7 @@ export default function App() {
         const res = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: [...messagesRef.current, userMsg] }),
+          body: JSON.stringify({ sessionId, userMessage: userMsg.content }),
           signal: ac.signal
         })
         if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
@@ -371,7 +338,7 @@ export default function App() {
 
   async function generateGreeting() {
     // Add a placeholder assistant message and stream the greeting
-    setMessages([{ role: 'assistant', content: '' }])
+    setMessages([{ id: nextIdRef.current++, role: 'assistant', content: '' }])
     setLoading(true)
     let myStreamId = 0
     try {
@@ -382,8 +349,7 @@ export default function App() {
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // Use a synthetic user instruction to request a greeting
-        body: JSON.stringify({ messages: [{ role: 'user', content: GREETING_INSTRUCTION }] }),
+        body: JSON.stringify({ sessionId, userMessage: GREETING_INSTRUCTION, resetSession: true }),
         signal: ac.signal
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
@@ -417,7 +383,7 @@ export default function App() {
       processBuffer()
     } catch (err) {
       console.error(err)
-      setMessages([{ role: 'assistant', content: 'Halo! Ada yang bisa kubantu hari ini?' }])
+      setMessages([{ id: nextIdRef.current++, role: 'assistant', content: 'Halo! Ada yang bisa kubantu hari ini?' }])
     } finally {
       if (myStreamId === streamIdRef.current) {
         setLoading(false)
@@ -450,7 +416,7 @@ export default function App() {
     const lastUserIndex = messages.slice(0, targetIndex).map(m => m.role).lastIndexOf('user')
     if (lastUserIndex === -1 && targetIndex !== 0) return
     const baseHistory = lastUserIndex >= 0 ? messages.slice(0, lastUserIndex + 1) : []
-    setMessages([...baseHistory, { role: 'assistant', content: '' }])
+    setMessages([...baseHistory, { id: nextIdRef.current++, role: 'assistant', content: '' }])
     setLoading(true)
     let myStreamId = 0
     try {
@@ -466,10 +432,12 @@ export default function App() {
         bufferTimeoutRef.current = null
       }
       
+      // Truncate server session to this base (by user-count) and retry
+      const keepUserCount = baseHistory.filter(m => m.role === 'user').length
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: baseHistory }),
+        body: JSON.stringify({ sessionId, action: 'truncate_and_retry', keepUserCount }),
         signal: ac.signal
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
@@ -514,7 +482,7 @@ export default function App() {
     if (lastUserIndex === -1 && lastIndex !== 0) return
     const baseHistory = lastUserIndex >= 0 ? messages.slice(0, lastUserIndex + 1) : []
     // Reset conversation to base history and append fresh placeholder
-    setMessages([...baseHistory, { role: 'assistant', content: '' }])
+    setMessages([...baseHistory, { id: nextIdRef.current++, role: 'assistant', content: '' }])
     setLoading(true)
     let myStreamId = 0
     try {
@@ -530,12 +498,11 @@ export default function App() {
         bufferTimeoutRef.current = null
       }
       
-      // Build history up to and including the triggering user message
-      const history = baseHistory
+      // Ask server to regenerate from last user in session (keeps payload small)
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ sessionId, action: 'retry_last' }),
         signal: ac.signal
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
@@ -585,6 +552,13 @@ export default function App() {
     generateGreeting()
   }
 
+  // Custom scroller: keep existing semantics and styling by using <main className="chat"> as the scroll container
+  const Scroller = useMemo(() => forwardRef(function ScrollerImpl({ className, style, ...rest }, ref) {
+    // Virtuoso sets style/children/role; merge className to keep .chat
+    const merged = ['chat', className].filter(Boolean).join(' ')
+    return <main ref={ref} className={merged} style={style} {...rest} />
+  }), [])
+
   return (
     <div className={`app${loading ? ' is-loading' : ''}`}>
       <header className="header">
@@ -627,12 +601,19 @@ export default function App() {
         )}
       </header>
 
-      <main ref={listRef} className="chat">
-        {messages.map((m, i) => {
+      <Virtuoso
+        ref={virtuosoRef}
+        data={messages}
+        style={{ height: '100%' }}
+        atBottomStateChange={handleAtBottomChange}
+        followOutput={true}
+        computeItemKey={(index, item) => item?.id ?? `idx-${index}-${item?.role}`}
+        components={{ Scroller }}
+        itemContent={(i, m) => {
           const isLast = i === messages.length - 1
           const showTyping = m.role === 'assistant' && isLast && loading && !m.content
           return (
-            <Fragment key={`msg-${i}-${m.role}`}>
+            <div className="msg-row" key={m?.id ?? `msg-${i}-${m.role}`}>
               {showTyping ? (
                 <div className="msg assistant">
                   <div className="avatar assistant"><BotIcon /></div>
@@ -645,20 +626,20 @@ export default function App() {
                   content={m.content}
                   onCopy={() => copyMessage(m.content)}
                   onRetry={m.role === 'assistant' && i > 0 ? (i === messages.length - 1 ? retryLastResponse : () => {
-                    // Retry at specific assistant index: trim and regenerate
-                    (async () => {
-                      await retryResponseAtIndex(i)
-                    })()
+                    (async () => { await retryResponseAtIndex(i) })()
                   }) : undefined}
                 />
               )}
-            </Fragment>
+            </div>
           )
-        })}
-        <div ref={bottomRef} />
-      </main>
+        }}
+      />
       {showScrollDown && (
-        <button className="scroll-down" aria-label="Scroll to bottom" title="Scroll to bottom" onClick={() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}>
+        <button className="scroll-down" aria-label="Scroll to bottom" title="Scroll to bottom" onClick={() => {
+          try {
+            virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, align: 'end', behavior: 'smooth' })
+          } catch {}
+        }}>
           <ChevronDownIcon />
         </button>
       )}

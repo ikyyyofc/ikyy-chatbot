@@ -37,6 +37,14 @@ html[data-theme='light'] {
 }
 
 * { box-sizing: border-box }
+/* Remove tap highlight and selection blue block across the app (except textarea) */
+.app *:not(textarea) {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 html, body, #root { height: 100% }
 body {
   margin: 0;
@@ -47,6 +55,9 @@ body {
     radial-gradient(900px 500px at 0% 100%, rgba(34,211,238,.12), transparent 50%),
     linear-gradient(180deg, var(--bg), var(--bg-2));
 }
+
+/* Hide page-level scrollbar; chat area handles scrolling */
+html, body { overflow: hidden }
 
 body::after { content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
   background-image: linear-gradient(to right, rgba(255,255,255,.04) 1px, transparent 1px),
@@ -112,7 +123,12 @@ html[data-theme='light'] .nav-menu a:hover{ background: rgba(2,6,23,.06) }
 .controls .secondary { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.04)); color: var(--text); border: 1px solid var(--panel-border); border-radius: var(--radius-sm); padding: 8px 12px; cursor: pointer; transition: transform .15s ease, filter .15s ease }
 .controls .secondary:hover { color: var(--text); border-color: #334567; transform: translateY(-1px) }
 
-.chat { padding: 14px 8px 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; scroll-behavior: smooth }
+.chat { padding: 14px 8px 8px; overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; -ms-overflow-style: none; scrollbar-width: none; scrollbar-color: transparent transparent }
+.chat::-webkit-scrollbar { width: 0; height: 0; display: none; background: transparent }
+/* Hide any nested scrollbars inside chat (e.g., internal wrappers) */
+.chat * { -ms-overflow-style: none; scrollbar-width: none }
+.chat *::-webkit-scrollbar { width: 0; height: 0 }
+.msg-row{ padding: 4px 0 }
 .chat::after{ content: none; display: none }
 html[data-theme='light'] .chat::after{ content: none; display: none }
 .msg { display: grid; grid-template-columns: 30px 1fr 30px; gap: 6px; align-items: end; animation: slideUp .18s ease-out both }
@@ -157,7 +173,8 @@ html[data-theme='light'] .bubble-inner th{ background: rgba(2,6,23,.06) }
 .textarea-wrap { position: relative; display: flex; align-items: center; min-height: 56px; border-radius: 18px; padding: 4px; background: linear-gradient(180deg, var(--panel-strong), var(--panel)); border: 1px solid var(--panel-border); box-shadow: none }
 .textarea-wrap{ backdrop-filter: blur(6px) saturate(140%) }
 .textarea-wrap::before, .textarea-wrap::after { content: none }
-.composer textarea { width: 100%; resize: none; max-height: 40vh; overflow: auto; background: transparent; color: var(--text); border: 0; border-radius: 0; padding: 12px 56px 12px 12px; outline: none; transition: color .2s ease }
+.composer textarea { width: 100%; resize: none; max-height: 40vh; overflow: auto; background: transparent; color: var(--text); border: 0; border-radius: 0; padding: 12px 56px 12px 12px; outline: none; transition: color .2s ease; -ms-overflow-style: none; scrollbar-width: none }
+.composer textarea::-webkit-scrollbar { width: 0; height: 0 }
 .composer textarea:focus { color: var(--text) }
 .composer textarea::placeholder { color: #93a1b7 }
 html[data-theme='light'] .composer { background: transparent }
@@ -200,7 +217,8 @@ html[data-theme='light'] .textarea-wrap{ backdrop-filter: blur(6px) saturate(140
   .controls select { padding: 6px 8px; font-size: 12px; border-radius: 8px }
   .controls .secondary { padding: 6px 8px; font-size: 12px; border-radius: 8px }
 
-  .chat { padding: 10px 4px 6px; gap: 6px }
+  .chat { padding: 10px 4px 6px }
+  .msg-row{ padding: 3px 0 }
   .msg { grid-template-columns: 24px 1fr 24px }
   .msg.user { grid-template-columns: 24px 1fr 24px }
   .avatar, .spacer { width: 24px; height: 24px }
@@ -217,9 +235,10 @@ html[data-theme='light'] .textarea-wrap{ backdrop-filter: blur(6px) saturate(140
 
   /* Code blocks compact */
   .codeblock { margin: 6px 0; border-radius: 10px }
+  .code-scroll { border-radius: 0 0 10px 10px }
   .code-header { padding: 5px 8px }
   .code-header .lang { font-size: 11px }
-  .codeblock > code { padding: 8px 10px }
+  .code-pre > code { padding: 8px 10px }
   .inline-code { padding: 1px 4px; border-radius: 5px }
 
   .bubble-actions { right: 4px; top: 4px; gap: 4px }
@@ -237,7 +256,7 @@ html[data-theme='light'] .textarea-wrap{ backdrop-filter: blur(6px) saturate(140
 .bubble-inner h1,.bubble-inner h2,.bubble-inner h3{margin:8px 0 6px;font-weight:700}
 .bubble-inner p{margin:4px 0}
 .bubble-inner code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:6px}
-.bubble-inner pre{background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.05);padding:12px;border-radius:12px;overflow:auto;margin:10px 0}
+.bubble-inner pre:not(.code-pre){background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.05);padding:12px;border-radius:12px;overflow:auto;margin:10px 0}
 .bubble-inner pre code{background:transparent;padding:0}
 .bubble-inner ul{padding-left:16px}
 .bubble-inner p, .bubble-inner li { white-space: pre-wrap }
@@ -248,12 +267,12 @@ html[data-theme='light'] .bubble-inner .katex-display{ background: rgba(255,255,
 
 .action{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);color:#dbeafe;border-radius:8px;padding:4px 8px;cursor:pointer}
 .action:hover{background:rgba(255,255,255,.16)}
-/* Scrollbar styling */
-.chat { scrollbar-width: thin }
-.chat::-webkit-scrollbar { width: 5px }
+/* Scrollbar styling (chat hidden entirely) */
+.chat { scrollbar-width: none }
+.chat::-webkit-scrollbar { width: 0; height: 0; display: none }
 .chat::-webkit-scrollbar-track { background: transparent }
-.chat::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px }
-html[data-theme='light'] .chat::-webkit-scrollbar-thumb { background: rgba(15,23,42,.25) }
+.chat::-webkit-scrollbar-thumb { background: transparent }
+html[data-theme='light'] .chat::-webkit-scrollbar-thumb { background: transparent }
 
 /* Make inner-scrollbars minimal as well (tables/math/code) */
 .bubble-inner, .codeblock, .bubble-inner .katex-display {
@@ -268,6 +287,8 @@ html[data-theme='light'] .chat::-webkit-scrollbar-thumb { background: rgba(15,23
 
 /* Light theme code colors */
 html[data-theme='light'] .hljs{color:#0f172a}
+/* Ensure readable code color on dark code background even in light theme */
+html[data-theme='light'] .codeblock .hljs{ color: #E6EBF5 }
 html[data-theme='light'] .hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-title,.hljs-section{color:#6d28d9}
 html[data-theme='light'] .hljs-string{color:#16a34a}
 html[data-theme='light'] .hljs-number{color:#be123c}
@@ -292,16 +313,18 @@ html[data-theme='light'] .hljs-comment{color:#64748b}
 .bubble-inner a:hover{ filter: brightness(1.1) }
 /* Code size overrides for small screens */
 @media (max-width: 640px) {
-  .codeblock > code { font-size: 11px; line-height: 1.45 }
+  .code-pre > code { font-size: 11px; line-height: 1.45 }
   .inline-code { font-size: .85em }
 }
 
 /* Inline code and code blocks */
 .inline-code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:6px;border:1px solid rgba(255,255,255,.06);font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:.9em}
-.codeblock{background:rgba(7,12,22,.7);border:1px solid rgba(255,255,255,.06);border-radius:12px;overflow:auto;margin:10px 0;box-shadow: 0 6px 18px rgba(0,0,0,.30); max-height: 60vh}
+.codeblock{position:relative;background:transparent;border:1px solid rgba(255,255,255,.06);border-radius:12px;overflow:hidden;margin:6px 0}
+.code-scroll{ max-height: 60vh; overflow:auto; border-radius: 0 0 12px 12px; background: rgba(7,12,22,.80); padding: 10px 12px }
 .code-header{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.06);background:linear-gradient(180deg, rgba(18,26,44,.8), rgba(14,20,36,.6))}
 .code-header .lang{font-size:11px;color:#9fb6ff;text-transform:lowercase}
-.codeblock > code{display:block;padding:10px 12px;min-width:100%;font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px; line-height:1.5}
+.code-pre{ margin: 0; background: transparent; border: 0; padding: 0 }
+.code-pre > code{display:block;padding:0;min-width:100%;font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px; line-height:1.5}
 
 /* Custom highlight.js theme (dark violet-cyan) */
 .hljs{color:#E6EBF5;background:transparent}

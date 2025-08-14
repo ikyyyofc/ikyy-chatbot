@@ -1,4 +1,4 @@
-import React, { useState, memo } from 'react'
+import React, { useState, memo, Fragment } from 'react'
 import { BotIcon, UserIcon, CopyIcon, RetryIcon } from './Icons.jsx'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -115,8 +115,8 @@ function Code({ inline, className, children, node }) {
   }
   
   return (
-    <pre className="codeblock">
-      <div className="code-header">
+    <div className="codeblock">
+      <div className="code-header top">
         <span className="lang" title={fileLabel || detectedLang}>
           {fileLabel || detectedLang}
         </span>
@@ -124,11 +124,15 @@ function Code({ inline, className, children, node }) {
           <CopyIcon />
         </button>
       </div>
-      <code 
-        className={`hljs language-${detectedLang}`} 
-        dangerouslySetInnerHTML={{ __html: html }} 
-      />
-    </pre>
+      <div className="code-scroll">
+        <pre className="code-pre">
+          <code
+            className={`hljs language-${detectedLang}`}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        </pre>
+      </div>
+    </div>
   )
 }
 
@@ -159,6 +163,7 @@ function MessageImpl({ role, content, onCopy, onRetry }) {
             rehypePlugins={[rehypeKatex]}
             components={{
               a: ({ node, ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
+              pre: ({ children }) => <Fragment>{children}</Fragment>,
               code: Code
             }}
           >
@@ -190,4 +195,9 @@ function MessageImpl({ role, content, onCopy, onRetry }) {
   )
 }
 
-export default MessageImpl
+// Memoize to avoid rerendering unchanged messages.
+// Ignore function prop identity changes (onCopy/onRetry), compare by role/content.
+export default memo(
+  MessageImpl,
+  (prev, next) => prev.role === next.role && prev.content === next.content
+)
