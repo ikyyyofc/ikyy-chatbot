@@ -457,7 +457,7 @@ export default function App() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ketik pesan… (Enter kirim, Shift+Enter baris baru)"
+              placeholder="Masukan teks..."
               rows={1}
             />
             <button
