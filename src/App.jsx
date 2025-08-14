@@ -1,6 +1,24 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { 
+  useEffect, 
+  useMemo, 
+  useRef, 
+  useState, 
+  useCallback, 
+  useLayoutEffect,
+  memo,
+  Fragment
+} from 'react'
 import Message from './components/Message.jsx'
-import { BotIcon, ResetIcon, WhatsAppIcon, InstagramIcon, GitHubIcon, ChevronDownIcon, SendIcon, StopIcon } from './components/Icons.jsx'
+import { 
+  BotIcon, 
+  ResetIcon, 
+  WhatsAppIcon, 
+  InstagramIcon, 
+  GitHubIcon, 
+  ChevronDownIcon, 
+  SendIcon, 
+  StopIcon 
+} from './components/Icons.jsx'
 import { GREETING_INSTRUCTION } from '../config.js'
 
 function Avatar({ kind }) {
@@ -11,11 +29,128 @@ function Avatar({ kind }) {
   )
 }
 
-// Greeting instruction moved to config.js
+// Komponen input yang benar-benar terisolasi dari state utama
+const InputComposer = memo(({ loading, sendMessage, stopStreaming }) => {
+  const textareaRef = useRef(null);
+  const inputRef = useRef('');
+  const canSendRef = useRef(false);
+  const rafRef = useRef(null);
+  
+  // Fungsi auto-grow yang sangat efisien
+  const resizeTextarea = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+    }
+    
+    rafRef.current = requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      
+      // Nonaktifkan transition untuk operasi ini
+      const originalTransition = el.style.transition;
+      el.style.transition = 'none';
+      
+      // Reset tinggi untuk menghitung ulang
+      const previousHeight = el.style.height;
+      el.style.height = 'auto';
+      
+      // Hitung tinggi baru
+      const maxHeight = Math.floor(window.innerHeight * 0.4);
+      const newHeight = Math.min(el.scrollHeight, maxHeight);
+      
+      // Hanya ubah jika benar-benar berbeda
+      if (Math.abs(newHeight - parseInt(previousHeight || '0')) > 2) {
+        el.style.height = `${newHeight}px`;
+      }
+      
+      // Kembalikan transition
+      el.style.transition = originalTransition;
+    });
+  }, []);
+
+  // Handler input yang super ringan
+  const handleInput = useCallback((e) => {
+    const value = e.target.value;
+    inputRef.current = value;
+    canSendRef.current = value.trim().length > 0 && !loading;
+    
+    // Resize hanya jika diperlukan
+    if (value.length % 5 === 0 || value.includes('\n')) {
+      resizeTextarea();
+    }
+  }, [loading, resizeTextarea]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (canSendRef.current) {
+        sendMessage(inputRef.current);
+        // Reset textarea dengan manipulasi DOM langsung
+        e.target.value = '';
+        inputRef.current = '';
+        canSendRef.current = false;
+        e.target.style.height = 'auto';
+      }
+    }
+  }, [sendMessage]);
+
+  // Optimasi: Gunakan microtask untuk resize terakhir
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div className="textarea-wrap">
+      <textarea
+        ref={textareaRef}
+        placeholder="Masukan teks..."
+        rows={1}
+        spellCheck="false"
+        autoCorrect="off"
+        autoCapitalize="off"
+        autoComplete="off"
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        // Optimasi kritis: Promosikan ke layer GPU
+        style={{ 
+          willChange: 'height',
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          perspective: '1000px'
+        }}
+      />
+      <button
+        className={`icon-btn send-icon${loading ? ' stop' : ''}`}
+        onClick={loading ? stopStreaming : () => {
+          if (canSendRef.current) {
+            sendMessage(inputRef.current);
+            // Reset textarea dengan manipulasi DOM langsung
+            textareaRef.current.value = '';
+            inputRef.current = '';
+            canSendRef.current = false;
+            textareaRef.current.style.height = 'auto';
+          }
+        }}
+        disabled={!canSendRef.current}
+        aria-label={loading ? 'Hentikan respons' : 'Kirim pesan'}
+        title={loading ? 'Hentikan respons' : 'Kirim pesan'}
+        // Optimasi kritis: Promosikan ke layer GPU
+        style={{ willChange: 'transform' }}
+      >
+        {loading ? <StopIcon /> : <SendIcon />}
+      </button>
+    </div>
+  );
+});
+
+InputComposer.displayName = 'InputComposer';
 
 export default function App() {
   const [messages, setMessages] = useState([])
-  const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [controller, setController] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -26,11 +161,19 @@ export default function App() {
   const bottomRef = useRef(null)
   const stickRef = useRef(true)
   const lastScrollTickRef = useRef(0)
-  const textareaRef = useRef(null)
   const greetedRef = useRef(false)
   const streamIdRef = useRef(0)
+  // Buffer untuk mengumpulkan chunk sebelum pembaruan state
+  const bufferRef = useRef('')
+  const bufferTimeoutRef = useRef(null)
 
-  // Track if user is near bottom; only then auto-stick
+  // Simpan referensi ke messages untuk akses tanpa trigger render
+  const messagesRef = useRef(messages)
+  useLayoutEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
+  // Track jika user is near bottom; only then auto-stick
   useEffect(() => {
     const el = listRef.current
     if (!el) return
@@ -54,25 +197,26 @@ export default function App() {
     }
   }, [messages, loading])
 
-  // While streaming, periodically issue a smooth scroll so motion feels fluid
+  // Optimasi: Kurangi frekuensi scroll dengan requestAnimationFrame
   useEffect(() => {
-    let id
-    if (loading) {
-      id = setInterval(() => {
-        if (stickRef.current && bottomRef.current) {
-          bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
-        }
-      }, 180)
-    } else {
+    let frameId
+    const handleScroll = () => {
       if (stickRef.current && bottomRef.current) {
-        bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+        bottomRef.current.scrollIntoView({ behavior: 'auto', block: 'end' })
       }
     }
-    return () => { if (id) clearInterval(id) }
-  }, [loading])
+
+    if (loading) {
+      frameId = requestAnimationFrame(handleScroll)
+    }
+
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId)
+    }
+  }, [messages, loading])
 
   useEffect(() => {
-    document.documentElement.dataset.theme = 'dark'
+    document.documentElement.datasetTheme = 'dark'
   }, [])
 
   // Generate the initial assistant greeting via streaming once on mount
@@ -107,85 +251,126 @@ export default function App() {
     }
   }, [menuOpen])
 
+  // Fungsi untuk memperbarui pesan dengan buffering
+  const updateMessageContent = useCallback((index, content) => {
+    setMessages(prev => {
+      const copy = [...prev]
+      if (index < copy.length) {
+        copy[index] = { ...copy[index], content }
+      }
+      return copy
+    })
+  }, [])
 
-  // no temperature persistence
+  // Fungsi untuk memproses buffer
+  const processBuffer = useCallback(() => {
+    if (bufferRef.current && bufferRef.current.length > 0) {
+      const currentMessages = messagesRef.current
+      const lastIndex = currentMessages.length - 1
+      const lastMessage = currentMessages[lastIndex]
+      
+      if (lastMessage && lastMessage.role === 'assistant') {
+        const newContent = (lastMessage.content || '') + bufferRef.current
+        updateMessageContent(lastIndex, newContent)
+      }
+      bufferRef.current = ''
+    }
+    
+    if (bufferTimeoutRef.current) {
+      clearTimeout(bufferTimeoutRef.current)
+      bufferTimeoutRef.current = null
+    }
+  }, [updateMessageContent])
 
-  const canSend = useMemo(() => input.trim().length > 0 && !loading, [input, loading])
-
-  // Auto-grow textarea
-  useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, Math.floor(window.innerHeight * 0.4)) + 'px'
-  }, [input])
-
-  async function sendMessage() {
-    if (!canSend) return
-    const userMsg = { role: 'user', content: input.trim() }
-    // Add user and a placeholder assistant message
-    setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '' }])
-    setInput('')
-    setLoading(true)
-    let myStreamId = 0
-    try {
-      const ac = new AbortController()
-      setController(ac)
-      myStreamId = streamIdRef.current + 1
-      streamIdRef.current = myStreamId
-      const res = await fetch('/api/chat/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
-        signal: ac.signal
-      })
-      if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let gotFirstChunk = false
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        // If a newer stream has started, stop updating
-        if (myStreamId !== streamIdRef.current) {
-          try { await reader.cancel() } catch {}
-          break
-        }
-        if (!gotFirstChunk && chunk) gotFirstChunk = true
-        setMessages(prev => {
-          const copy = prev.slice()
-          // last message is assistant placeholder
-          const lastIndex = copy.length - 1
-          const last = copy[lastIndex]
-          copy[lastIndex] = { ...last, content: (last.content || '') + chunk }
-          return copy
-        })
+  // Fungsi untuk menambahkan chunk ke buffer
+  const addToBuffer = useCallback((chunk) => {
+    bufferRef.current += chunk
+    
+    // Proses buffer setiap 16ms (~60fps)
+    if (!bufferTimeoutRef.current) {
+      bufferTimeoutRef.current = setTimeout(() => {
+        processBuffer()
+        // Lakukan scroll hanya setelah pembaruan buffer
         if (stickRef.current && bottomRef.current) {
           bottomRef.current.scrollIntoView({ behavior: 'auto', block: 'end' })
         }
-      }
-    } catch (err) {
-      console.error(err)
-      if (err?.name !== 'AbortError') {
-        setMessages(prev => {
-          // Replace the placeholder only if still empty
-          const copy = prev.slice()
-          const lastIndex = copy.length - 1
-          const last = copy[lastIndex]
-          if (!last?.content) {
-            copy[lastIndex] = { role: 'assistant', content: 'Maaf, terjadi kesalahan memproses permintaan.' }
-          }
-          return copy
-        })
-      }
-    } finally {
-      if (myStreamId === streamIdRef.current) {
-        setLoading(false)
-        setController(null)
-      }
+      }, 16)
     }
-  }
+  }, [processBuffer])
+
+  const sendMessage = useCallback((text) => {
+    if (!text.trim() || loading) return
+    const userMsg = { role: 'user', content: text.trim() }
+    // Add user and a placeholder assistant message
+    setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '' }])
+    setLoading(true)
+    let myStreamId = 0
+    ;(async () => {
+      try {
+        const ac = new AbortController()
+        setController(ac)
+        myStreamId = streamIdRef.current + 1
+        streamIdRef.current = myStreamId
+        const res = await fetch('/api/chat/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: [...messagesRef.current, userMsg] }),
+          signal: ac.signal
+        })
+        if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let gotFirstChunk = false
+        
+        // Reset buffer
+        bufferRef.current = ''
+        if (bufferTimeoutRef.current) {
+          clearTimeout(bufferTimeoutRef.current)
+          bufferTimeoutRef.current = null
+        }
+        
+        while (true) {
+          const { value, done } = await reader.read()
+          if (done) break
+          const chunk = decoder.decode(value, { stream: true })
+          // If a newer stream has started, stop updating
+          if (myStreamId !== streamIdRef.current) {
+            try { await reader.cancel() } catch {}
+            break
+          }
+          if (!gotFirstChunk && chunk) gotFirstChunk = true
+          
+          // Tambahkan ke buffer alih-alih langsung update state
+          addToBuffer(chunk)
+        }
+        
+        // Pastikan semua buffer diproses sebelum selesai
+        if (bufferTimeoutRef.current) {
+          clearTimeout(bufferTimeoutRef.current)
+        }
+        processBuffer()
+      } catch (err) {
+        console.error(err)
+        if (err?.name !== 'AbortError') {
+          setMessages(prev => {
+            // Replace the placeholder only if still empty
+            const copy = prev.slice()
+            const lastIndex = copy.length - 1
+            const last = copy[lastIndex]
+            if (!last?.content) {
+              copy[lastIndex] = { role: 'assistant', content: 'Maaf, terjadi kesalahan memproses permintaan.' }
+            }
+            return copy
+          })
+        }
+      } finally {
+        if (myStreamId === streamIdRef.current) {
+          setLoading(false)
+          setController(null)
+        }
+      }
+    })();
+  }, [loading, addToBuffer, processBuffer])
 
   async function generateGreeting() {
     // Add a placeholder assistant message and stream the greeting
@@ -207,6 +392,14 @@ export default function App() {
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
+      
+      // Reset buffer
+      bufferRef.current = ''
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current)
+        bufferTimeoutRef.current = null
+      }
+      
       while (true) {
         const { value, done } = await reader.read()
         if (done) break
@@ -215,16 +408,16 @@ export default function App() {
           try { await reader.cancel() } catch {}
           break
         }
-        setMessages(prev => {
-          const copy = prev.slice()
-          const idx = copy.length - 1
-          copy[idx] = { role: 'assistant', content: (copy[idx]?.content || '') + chunk }
-          return copy
-        })
-        if (stickRef.current && bottomRef.current) {
-          bottomRef.current.scrollIntoView({ behavior: 'auto', block: 'end' })
-        }
+        
+        // Tambahkan ke buffer alih-alih langsung update state
+        addToBuffer(chunk)
       }
+      
+      // Pastikan semua buffer diproses sebelum selesai
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current)
+      }
+      processBuffer()
     } catch (err) {
       console.error(err)
       setMessages([{ role: 'assistant', content: 'Halo! Ada yang bisa kubantu hari ini?' }])
@@ -237,7 +430,15 @@ export default function App() {
   }
 
   function stopStreaming() {
-    try { controller?.abort() } catch {}
+    try { 
+      controller?.abort() 
+      // Hapus buffer yang tersisa
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current)
+        bufferTimeoutRef.current = null
+      }
+      bufferRef.current = ''
+    } catch {}
   }
 
   async function copyMessage(text) {
@@ -260,6 +461,14 @@ export default function App() {
       setController(ac)
       myStreamId = streamIdRef.current + 1
       streamIdRef.current = myStreamId
+      
+      // Reset buffer
+      bufferRef.current = ''
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current)
+        bufferTimeoutRef.current = null
+      }
+      
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -277,16 +486,16 @@ export default function App() {
           try { await reader.cancel() } catch {}
           break
         }
-        setMessages(prev => {
-          const copy = prev.slice()
-          const idx = copy.length - 1
-          copy[idx] = { role: 'assistant', content: (copy[idx].content || '') + chunk }
-          return copy
-        })
-        if (stickRef.current && bottomRef.current) {
-          bottomRef.current.scrollIntoView({ behavior: 'auto', block: 'end' })
-        }
+        
+        // Tambahkan ke buffer alih-alih langsung update state
+        addToBuffer(chunk)
       }
+      
+      // Pastikan semua buffer diproses sebelum selesai
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current)
+      }
+      processBuffer()
     } catch (err) {
       console.error(err)
     } finally {
@@ -316,6 +525,14 @@ export default function App() {
       setController(ac)
       myStreamId = streamIdRef.current + 1
       streamIdRef.current = myStreamId
+      
+      // Reset buffer
+      bufferRef.current = ''
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current)
+        bufferTimeoutRef.current = null
+      }
+      
       // Build history up to and including the triggering user message
       const history = baseHistory
       const res = await fetch('/api/chat/stream', {
@@ -335,16 +552,16 @@ export default function App() {
           try { await reader.cancel() } catch {}
           break
         }
-        setMessages(prev => {
-          const copy = prev.slice()
-          const idx = copy.length - 1
-          copy[idx] = { role: 'assistant', content: (copy[idx].content || '') + chunk }
-          return copy
-        })
-        if (stickRef.current && bottomRef.current) {
-          bottomRef.current.scrollIntoView({ behavior: 'auto', block: 'end' })
-        }
+        
+        // Tambahkan ke buffer alih-alih langsung update state
+        addToBuffer(chunk)
       }
+      
+      // Pastikan semua buffer diproses sebelum selesai
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current)
+      }
+      processBuffer()
     } catch (err) {
       console.error(err)
     } finally {
@@ -355,18 +572,18 @@ export default function App() {
     }
   }
 
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
-  }
-
   function resetChat() {
     // Abort any in-flight stream and invalidate stale updates
-    try { controller?.abort() } catch {}
+    try { 
+      controller?.abort() 
+      // Hapus buffer yang tersisa
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current)
+        bufferTimeoutRef.current = null
+      }
+      bufferRef.current = ''
+    } catch {}
     streamIdRef.current += 1
-    setInput('')
     // Start a fresh greeting
     generateGreeting()
   }
@@ -397,15 +614,15 @@ export default function App() {
         </div>
         {menuOpen && (
           <div className="nav-menu" ref={menuRef}>
-            <a href="https://wa.me/6287866255637" target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>
+            <a href="https://wa.me/6287866255637 " target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>
               <WhatsAppIcon />
               WA
             </a>
-            <a href="https://instagram.com/ikyyofc" target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>
+            <a href="https://instagram.com/ikyyofc " target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>
               <InstagramIcon />
               IG
             </a>
-            <a href="https://github.com/ikyyyofc" target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>
+            <a href="https://github.com/ikyyyofc " target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>
               <GitHubIcon />
               GitHub
             </a>
@@ -418,7 +635,7 @@ export default function App() {
           const isLast = i === messages.length - 1
           const showTyping = m.role === 'assistant' && isLast && loading && !m.content
           return (
-            <div key={i}>
+            <Fragment key={`msg-${i}-${m.role}`}>
               {showTyping ? (
                 <div className="msg assistant">
                   <div className="avatar assistant"><BotIcon /></div>
@@ -438,7 +655,7 @@ export default function App() {
                   }) : undefined}
                 />
               )}
-            </div>
+            </Fragment>
           )
         })}
         <div ref={bottomRef} />
@@ -451,25 +668,11 @@ export default function App() {
 
       <footer className="composer">
         <div className="composer-inner">
-          <div className="textarea-wrap">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Masukan teks..."
-              rows={1}
-            />
-            <button
-              className={`icon-btn send-icon${loading ? ' stop' : ''}`}
-              onClick={loading ? stopStreaming : sendMessage}
-              disabled={!loading && !canSend}
-              aria-label={loading ? 'Hentikan respons' : 'Kirim pesan'}
-              title={loading ? 'Hentikan respons' : 'Kirim pesan'}
-            >
-              {loading ? <StopIcon /> : <SendIcon />}
-            </button>
-          </div>
+          <InputComposer
+            loading={loading}
+            sendMessage={sendMessage}
+            stopStreaming={stopStreaming}
+          />
         </div>
       </footer>
     </div>
