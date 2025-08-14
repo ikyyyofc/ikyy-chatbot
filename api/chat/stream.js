@@ -7,6 +7,8 @@ async function readJson(req) {
     if (req.body && typeof req.body === "object") return req.body;
     return new Promise((resolve, reject) => {
         let data = "";
+        // Gunakan decoding UTF-8 yang aman lintas chunk
+        try { req.setEncoding('utf8') } catch {}
         req.on("data", chunk => {
             data += chunk;
         });
@@ -88,9 +90,11 @@ export default async function handler(req, res) {
         let buffer = "";
         let isProcessing = false;
         let assistantText = '';
+        const decoder = new TextDecoder('utf-8');
 
         response.on("data", chunk => {
-            buffer += chunk.toString();
+            // Gunakan TextDecoder streaming agar multi-byte UTF-8 tidak pecah di batas chunk
+            buffer += decoder.decode(chunk, { stream: true });
             if (!isProcessing) {
                 isProcessing = true;
                 processBuffer();
@@ -108,7 +112,7 @@ export default async function handler(req, res) {
                 if (obj.candidates?.[0]?.content?.parts?.[0]?.text) {
                     const text = obj.candidates[0].content.parts[0].text;
                     assistantText += text;
-                    res.write(text);
+                    try { res.write(Buffer.from(text, 'utf8')) } catch { res.write(text) }
                 }
             } catch (e) {
                 // Hanya log error parsing jika dalam mode debug
@@ -166,6 +170,8 @@ export default async function handler(req, res) {
         }
 
         response.on("end", () => {
+            // Flush decoder untuk menangkap sisa byte parsial terakhir
+            try { buffer += decoder.decode() } catch {}
             if (buffer.trim()) {
                 processBuffer();
             }

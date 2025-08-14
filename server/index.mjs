@@ -94,9 +94,11 @@ app.post('/api/chat/stream', async (req, res) => {
         let buffer = '';
         let isProcessing = false;
         let assistantText = '';
+        const decoder = new TextDecoder('utf-8');
 
         response.on("data", (chunk) => {
-            buffer += chunk.toString();
+            // Gunakan TextDecoder streaming agar multi-byte UTF-8 tidak pecah di batas chunk
+            buffer += decoder.decode(chunk, { stream: true });
             if (!isProcessing) {
                 isProcessing = true;
                 processBuffer();
@@ -114,7 +116,7 @@ app.post('/api/chat/stream', async (req, res) => {
                 if (obj.candidates?.[0]?.content?.parts?.[0]?.text) {
                     const text = obj.candidates[0].content.parts[0].text
                     assistantText += text
-                    res.write(text)
+                    try { res.write(Buffer.from(text, 'utf8')) } catch { res.write(text) }
                 }
             } catch (e) {
                 // Hanya log error parsing jika dalam mode debug
@@ -173,6 +175,8 @@ app.post('/api/chat/stream', async (req, res) => {
         }
         
         response.on("end", () => {
+          // Flush decoder untuk menangkap sisa byte parsial terakhir
+          try { buffer += decoder.decode() } catch {}
           if (buffer.trim()) {
             processBuffer()
           }

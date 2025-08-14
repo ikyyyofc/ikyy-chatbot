@@ -69,20 +69,14 @@ hljs.registerLanguage('plaintext', plaintext)
 
 function Code({ inline, className, children, node }) {
   const raw = String(children ?? '')
-  
-  // [FILTER 1] Nonaktifkan SEMUA inline code (backtick tunggal)
-  if (inline) {
-    return <>{raw}</>
-  }
+  // Deteksi inline secara robust: gunakan flag inline bila ada,
+  // fallback ke heuristik (tanpa className bahasa dan tanpa newline)
+  const isInline = (typeof inline === 'boolean') ? inline : (!className && !raw.includes('\n'))
+  if (isInline) return <code className="inline-code">{raw}</code>
 
   // Ekstrak bahasa dari className (e.g., "language-html")
   const match = /language-([\w-]+)/.exec(className || '')
-  const language = match?.[1]?.toLowerCase()
-
-  // [FILTER 2] Hanya terima blok kode dengan tag bahasa (ADA tag)
-  if (!language) {
-    return <>{raw}</>
-  }
+  const language = (match?.[1]?.toLowerCase()) || 'plaintext'
 
   // [AUTO-DETECTION] Gunakan bahasa spesifik jika terdaftar, 
   // atau deteksi otomatis untuk SEMUA bahasa yang didukung
@@ -197,7 +191,17 @@ function MessageImpl({ role, content, onCopy, onRetry }) {
 
 // Memoize to avoid rerendering unchanged messages.
 // Ignore function prop identity changes (onCopy/onRetry), compare by role/content.
+// Penting: jangan abaikan perubahan fungsi handler.
+// Sebelumnya comparator hanya melihat role/content sehingga onRetry/onCopy
+// bisa membawa closure stale (mis. menangkap state loading=true) dan klik
+// retry tidak bereaksi. Dengan membandingkan referensi handler, komponen
+// akan rerender saat handler berubah sehingga memakai closure terbaru.
 export default memo(
   MessageImpl,
-  (prev, next) => prev.role === next.role && prev.content === next.content
+  (prev, next) => (
+    prev.role === next.role &&
+    prev.content === next.content &&
+    prev.onRetry === next.onRetry &&
+    prev.onCopy === next.onCopy
+  )
 )

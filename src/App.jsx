@@ -166,6 +166,7 @@ export default function App() {
   const lastScrollTickRef = useRef(0)
   const greetedRef = useRef(false)
   const streamIdRef = useRef(0)
+  const activeAssistantIndexRef = useRef(null)
   const nextIdRef = useRef(1)
   // Buffer untuk mengumpulkan chunk sebelum pembaruan state
   const bufferRef = useRef('')
@@ -234,12 +235,12 @@ export default function App() {
   const processBuffer = useCallback(() => {
     if (bufferRef.current && bufferRef.current.length > 0) {
       const currentMessages = messagesRef.current
-      const lastIndex = currentMessages.length - 1
-      const lastMessage = currentMessages[lastIndex]
+      const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (currentMessages.length - 1)
+      const lastMessage = currentMessages[targetIndex]
       
       if (lastMessage && lastMessage.role === 'assistant') {
         const newContent = (lastMessage.content || '') + bufferRef.current
-        updateMessageContent(lastIndex, newContent)
+        updateMessageContent(targetIndex, newContent)
       }
       bufferRef.current = ''
     }
@@ -266,7 +267,12 @@ export default function App() {
     if (!text.trim() || loading) return
     const userMsg = { id: nextIdRef.current++, role: 'user', content: text.trim() }
     // Add user and a placeholder assistant message
-    setMessages(prev => [...prev, userMsg, { id: nextIdRef.current++, role: 'assistant', content: '' }])
+    setMessages(prev => {
+      const newList = [...prev, userMsg, { id: nextIdRef.current++, role: 'assistant', content: '' }]
+      // placeholder index is prev.length + 1
+      activeAssistantIndexRef.current = prev.length + 1
+      return newList
+    })
     setLoading(true)
     let myStreamId = 0
     ;(async () => {
@@ -331,6 +337,7 @@ export default function App() {
         if (myStreamId === streamIdRef.current) {
           setLoading(false)
           setController(null)
+          activeAssistantIndexRef.current = null
         }
       }
     })();
@@ -338,7 +345,10 @@ export default function App() {
 
   async function generateGreeting() {
     // Add a placeholder assistant message and stream the greeting
-    setMessages([{ id: nextIdRef.current++, role: 'assistant', content: '' }])
+    setMessages(() => {
+      activeAssistantIndexRef.current = 0
+      return [{ id: nextIdRef.current++, role: 'assistant', content: '' }]
+    })
     setLoading(true)
     let myStreamId = 0
     try {
@@ -388,6 +398,7 @@ export default function App() {
       if (myStreamId === streamIdRef.current) {
         setLoading(false)
         setController(null)
+        activeAssistantIndexRef.current = null
       }
     }
   }
@@ -401,6 +412,7 @@ export default function App() {
         bufferTimeoutRef.current = null
       }
       bufferRef.current = ''
+      activeAssistantIndexRef.current = null
     } catch {}
   }
 
@@ -416,7 +428,10 @@ export default function App() {
     const lastUserIndex = messages.slice(0, targetIndex).map(m => m.role).lastIndexOf('user')
     if (lastUserIndex === -1 && targetIndex !== 0) return
     const baseHistory = lastUserIndex >= 0 ? messages.slice(0, lastUserIndex + 1) : []
-    setMessages([...baseHistory, { id: nextIdRef.current++, role: 'assistant', content: '' }])
+    setMessages(() => {
+      activeAssistantIndexRef.current = baseHistory.length
+      return [...baseHistory, { id: nextIdRef.current++, role: 'assistant', content: '' }]
+    })
     setLoading(true)
     let myStreamId = 0
     try {
@@ -463,13 +478,100 @@ export default function App() {
       processBuffer()
     } catch (err) {
       console.error(err)
+      // Isi placeholder dengan pesan error jika gagal
+      setMessages(prev => {
+        const copy = prev.slice()
+        const lastIndex = copy.length - 1
+        const last = copy[lastIndex]
+        if (last?.role === 'assistant' && !last.content) {
+          copy[lastIndex] = { ...last, content: 'Maaf, terjadi kesalahan saat melakukan retry.' }
+        }
+        return copy
+      })
+    } finally {
+      if (myStreamId === streamIdRef.current) {
+        setLoading(false)
+        setController(null)
+        activeAssistantIndexRef.current = null
+      }
+    }
+  }
+
+  // Retry assistant response by message id to avoid stale index issues with virtualization/memoization
+  const retryAssistantById = useCallback(async (msgId) => {
+    if (loading) return
+    const current = messagesRef.current
+    const idx = current.findIndex(m => m.id === msgId)
+    if (idx <= 0) return
+    if (current[idx]?.role !== 'assistant') return
+
+    const lastAssistantIndex = [...current].map(m => m.role).lastIndexOf('assistant')
+    if (idx === lastAssistantIndex) {
+      await retryLastResponse()
+      return
+    }
+
+    const lastUserIndex = current.slice(0, idx).map(m => m.role).lastIndexOf('user')
+    if (lastUserIndex === -1 && idx !== 0) return
+    const baseHistory = lastUserIndex >= 0 ? current.slice(0, lastUserIndex + 1) : []
+    setMessages(() => {
+      activeAssistantIndexRef.current = baseHistory.length
+      return [...baseHistory, { id: nextIdRef.current++, role: 'assistant', content: '' }]
+    })
+    setLoading(true)
+    let myStreamId = 0
+    try {
+      const ac = new AbortController()
+      setController(ac)
+      myStreamId = streamIdRef.current + 1
+      streamIdRef.current = myStreamId
+      // Reset buffer
+      bufferRef.current = ''
+      if (bufferTimeoutRef.current) {
+        clearTimeout(bufferTimeoutRef.current)
+        bufferTimeoutRef.current = null
+      }
+      const keepUserCount = baseHistory.filter(m => m.role === 'user').length
+      const res = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, action: 'truncate_and_retry', keepUserCount }),
+        signal: ac.signal
+      })
+      if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        if (myStreamId !== streamIdRef.current) {
+          try { await reader.cancel() } catch {}
+          break
+        }
+        addToBuffer(chunk)
+      }
+      if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current)
+      processBuffer()
+    } catch (err) {
+      console.error(err)
+      // Isi placeholder dengan pesan error jika gagal
+      setMessages(prev => {
+        const copy = prev.slice()
+        const lastIndex = copy.length - 1
+        const last = copy[lastIndex]
+        if (last?.role === 'assistant' && !last.content) {
+          copy[lastIndex] = { ...last, content: 'Maaf, terjadi kesalahan saat melakukan retry.' }
+        }
+        return copy
+      })
     } finally {
       if (myStreamId === streamIdRef.current) {
         setLoading(false)
         setController(null)
       }
     }
-  }
+  }, [loading, retryLastResponse, addToBuffer, processBuffer, sessionId])
 
   async function retryLastResponse() {
     if (loading) return
@@ -528,6 +630,16 @@ export default function App() {
       processBuffer()
     } catch (err) {
       console.error(err)
+      // Isi placeholder dengan pesan error jika gagal
+      setMessages(prev => {
+        const copy = prev.slice()
+        const lastIndex = copy.length - 1
+        const last = copy[lastIndex]
+        if (last?.role === 'assistant' && !last.content) {
+          copy[lastIndex] = { ...last, content: 'Maaf, terjadi kesalahan saat melakukan retry.' }
+        }
+        return copy
+      })
     } finally {
       if (myStreamId === streamIdRef.current) {
         setLoading(false)
@@ -612,6 +724,7 @@ export default function App() {
         itemContent={(i, m) => {
           const isLast = i === messages.length - 1
           const showTyping = m.role === 'assistant' && isLast && loading && !m.content
+          const hasPrevUser = i > 0 ? messages.slice(0, i).some(x => x.role === 'user') : false
           return (
             <div className="msg-row" key={m?.id ?? `msg-${i}-${m.role}`}>
               {showTyping ? (
@@ -625,9 +738,7 @@ export default function App() {
                   role={m.role}
                   content={m.content}
                   onCopy={() => copyMessage(m.content)}
-                  onRetry={m.role === 'assistant' && i > 0 ? (i === messages.length - 1 ? retryLastResponse : () => {
-                    (async () => { await retryResponseAtIndex(i) })()
-                  }) : undefined}
+                  onRetry={m.role === 'assistant' && hasPrevUser ? () => { (async () => { await retryAssistantById(m.id) })() } : undefined}
                 />
               )}
             </div>
