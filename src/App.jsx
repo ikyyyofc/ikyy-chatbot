@@ -172,6 +172,8 @@ export default function App() {
   // Live streaming buffer to avoid full-list state updates per chunk
   const liveAppendRef = useRef('')
   const [liveTick, setLiveTick] = useState(0)
+  const [searchCount, setSearchCount] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Simpan referensi ke messages untuk akses tanpa trigger render
   const messagesRef = useRef(messages)
@@ -253,6 +255,34 @@ export default function App() {
   // Buffer chunk streaming dan repaint baris aktif segera
   const appendToAssistant = useCallback((chunk) => {
     if (!chunk) return
+    // Detect tool markers and update searching counter + query
+    try {
+      let starts = 0
+      let ends = 0
+      if (chunk.includes('⟦tool:realtime_info:start:')) {
+        const re = /⟦tool:realtime_info:start:([^⟧]*)⟧/g
+        let m
+        while ((m = re.exec(chunk))) {
+          starts += 1
+          try { setSearchQuery(decodeURIComponent(m[1] || '')) } catch { setSearchQuery('') }
+        }
+        try { chunk = chunk.replace(/⟦tool:realtime_info:start:[^⟧]*⟧/g, '') } catch {}
+      }
+      if (chunk.includes('⟦tool:realtime_info:end:')) {
+        const re2 = /⟦tool:realtime_info:end:([^⟧]*)⟧/g
+        let m2
+        while ((m2 = re2.exec(chunk))) { ends += 1 }
+        try { chunk = chunk.replace(/⟦tool:realtime_info:end:[^⟧]*⟧/g, '') } catch {}
+      }
+      if (starts || ends) {
+        setSearchCount((c) => {
+          const next = Math.max(0, c + starts - ends)
+          if (next === 0) setSearchQuery('')
+          return next
+        })
+      }
+    } catch {}
+    if (!chunk) return
     liveAppendRef.current += chunk
     setLiveTick(t => t + 1)
   }, [])
@@ -322,6 +352,8 @@ export default function App() {
           setLoading(false)
           setController(null)
           activeAssistantIndexRef.current = null
+          setSearchCount(0)
+          setSearchQuery('')
         }
       }
     })();
@@ -373,6 +405,8 @@ export default function App() {
         setLoading(false)
         setController(null)
         activeAssistantIndexRef.current = null
+        setSearchCount(0)
+        setSearchQuery('')
       }
     }
   }
@@ -532,6 +566,8 @@ export default function App() {
         setLoading(false)
         setController(null)
         activeAssistantIndexRef.current = null
+        setSearchCount(0)
+        setSearchQuery('')
       }
     }
   }, [loading, retryLastResponse, appendToAssistant, sessionId, flushLiveToState])
@@ -603,6 +639,8 @@ export default function App() {
         setLoading(false)
         setController(null)
         activeAssistantIndexRef.current = null
+        setSearchCount(0)
+        setSearchQuery('')
       }
     }
   }
@@ -677,7 +715,8 @@ export default function App() {
         itemContent={(i, m) => {
           const isLast = i === messages.length - 1
           const isActiveAssistant = m.role === 'assistant' && (i === (typeof activeAssistantIndexRef.current === 'number' ? activeAssistantIndexRef.current : -1))
-          const showTyping = m.role === 'assistant' && isLast && loading && !m.content && !liveAppendRef.current
+          const isSearching = searchCount > 0
+          const showTyping = m.role === 'assistant' && isLast && loading && !m.content && !liveAppendRef.current && !isSearching
           const hasPrevUser = i > 0 ? messages.slice(0, i).some(x => x.role === 'user') : false
           const liveExtra = isActiveAssistant ? (liveAppendRef.current || '') : ''
           const contentToShow = (m.content || '') + liveExtra
@@ -696,6 +735,8 @@ export default function App() {
                   role={m.role}
                   content={contentToShow}
                   tick={rowTick}
+                  searching={searchCount > 0 && isActiveAssistant}
+                  searchingQuery={searchQuery}
                   onCopy={handleCopy}
                   onRetry={m.role === 'assistant' && hasPrevUser ? handleRetry : undefined}
                   msgId={m.id}

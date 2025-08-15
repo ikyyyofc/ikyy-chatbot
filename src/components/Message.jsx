@@ -143,7 +143,7 @@ function normalizeMathDelimiters(text) {
   return text
 }
 
-function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, actionsDisabled = false }) {
+function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, actionsDisabled = false, searching = false, searchingQuery = '' }) {
   const isAssistant = role === 'assistant'
   const [showActions, setShowActions] = useState(false)
   return (
@@ -152,6 +152,12 @@ function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, acti
         {isAssistant ? <div className="avatar assistant"><BotIcon /></div> : <div className="spacer" />}
         <div className="bubble appear" onClick={() => setShowActions(v => !v)}>
           <div className="bubble-inner">
+          {isAssistant && searching && (
+            <div className="tool-indicator" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', opacity: 0.85, marginBottom: '6px' }}>
+              <span role="img" aria-label="searching">🔎</span>
+              <span>{searchingQuery || '...'}</span>
+            </div>
+          )}
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
             rehypePlugins={[rehypeKatex]}
@@ -203,6 +209,8 @@ export default memo(
     prev.role === next.role &&
     prev.content === next.content &&
     prev.tick === next.tick &&
+    prev.searching === next.searching &&
+    prev.searchingQuery === next.searchingQuery &&
     prev.onRetry === next.onRetry &&
     prev.onCopy === next.onCopy
   )
