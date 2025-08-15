@@ -18,10 +18,11 @@ UI chat minimal (React + Vite) dengan backend Express/Serverless yang terhubung 
 ## Konfigurasi AI
 
 - Pilih penyedia model di `config.js`:
-  - `MODEL_PROVIDER`: `vertex` (default) atau `openai`.
+- `MODEL_PROVIDER`: `vertex` (default) atau `openai`.
   - `OPENAI_MODEL`: nama model OpenAI (default: `gpt-4.1`).
-- Autentikasi Vertex telah ditanam langsung di `lib/vertex.js` sesuai permintaan, sehingga tidak perlu environment variables untuk kredensial.
+- Autentikasi Vertex kini menggunakan environment variable: set `FIREBASE_VERTEX_API_KEY` (atau `GOOGLE_API_KEY`). Kredensial tidak lagi ditanam di kode.
 - Untuk OpenAI, set environment variable: `OPENAI_API_KEY`.
+  - Model default untuk Chat Completions disetel ke `gpt-4.1`.
 - Pengaturan yang masih bisa diubah via env (opsional) ada di `config.js`:
   - `SYSTEM_PROMPT`: pesan sistem yang ditambahkan ke awal percakapan.
   - `GREETING_INSTRUCTION`: instruksi untuk sapaan awal.

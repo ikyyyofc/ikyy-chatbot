@@ -110,24 +110,23 @@ export default async function handler(req, res) {
         });
 
         function processBuffer() {
-            const result = extractCompleteJSON(buffer);
-            if (!result) return;
+            while (true) {
+                const result = extractCompleteJSON(buffer);
+                if (!result) break;
 
-            buffer = result.remaining;
-            try {
-                const obj = JSON.parse(result.json);
-                if (obj.candidates?.[0]?.content?.parts?.[0]?.text) {
-                    const text = obj.candidates[0].content.parts[0].text;
-                    assistantText += text;
-                    try { res.write(Buffer.from(text, 'utf8')) } catch { res.write(text) }
+                buffer = result.remaining;
+                try {
+                    const obj = JSON.parse(result.json);
+                    if (obj.candidates?.[0]?.content?.parts?.[0]?.text) {
+                        const text = obj.candidates[0].content.parts[0].text;
+                        assistantText += text;
+                        try { res.write(Buffer.from(text, 'utf8')) } catch { res.write(text) }
+                    }
+                } catch (e) {
+                    // Hanya log error parsing jika dalam mode debug
+                    // console.error("Error parsing JSON:", e);
                 }
-            } catch (e) {
-                // Hanya log error parsing jika dalam mode debug
-                // console.error("Error parsing JSON:", e);
             }
-
-            // Proses sisa buffer secara rekursif
-            processBuffer();
         }
 
         function extractCompleteJSON(buffer) {

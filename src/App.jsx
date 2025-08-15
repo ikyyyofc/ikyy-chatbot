@@ -340,7 +340,8 @@ export default function App() {
             const lastIndex = copy.length - 1
             const last = copy[lastIndex]
             if (!last?.content) {
-              copy[lastIndex] = { role: 'assistant', content: 'Maaf, terjadi kesalahan memproses permintaan.' }
+              // Pertahankan id dan properti lain agar aksi (mis. retry) tetap berfungsi
+              copy[lastIndex] = { ...last, role: 'assistant', content: 'Maaf, terjadi kesalahan memproses permintaan.' }
             }
             return copy
           })

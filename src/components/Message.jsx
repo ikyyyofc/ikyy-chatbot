@@ -95,7 +95,8 @@ function Code({ inline, className, children, node }) {
     }
   } catch {
     // Fallback jika terjadi error
-    html = raw.replace(/[&<>"]/g, s => ({'&':'&amp;','<':'<','>':'>','"':'&quot;'}[s]))
+    // Perbaiki escaping agar aman (hindari XSS)
+    html = raw.replace(/[&<>"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]))
     detectedLang = 'text'
   }
 

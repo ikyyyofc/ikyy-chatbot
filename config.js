@@ -26,6 +26,7 @@ export const GREETING_INSTRUCTION = getEnv(
 export const MODEL_PROVIDER = getEnv('MODEL_PROVIDER', 'openai')
 
 // Nama model untuk masing-masing provider (opsional)
+// Gunakan model default yang kompatibel dengan Chat Completions
 export const OPENAI_MODEL = getEnv('OPENAI_MODEL', 'gpt-4.1')
 // Catatan: kredensial Vertex diatur di lib/vertex.js sesuai repo ini.
 // Jika suatu saat dipindah ke env, tambahkan di sini juga.
