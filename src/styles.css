@@ -143,7 +143,7 @@ html[data-theme='light'] .chat::after{ content: none; display: none }
 .msg.user .avatar { justify-self: end }
 .avatar-emoji { font-size: 16px; line-height: 1 }
 .bubble { max-width: min(88%, 820px); padding: 8px 10px; border-radius: var(--radius-md); line-height: 1.45; box-shadow: none; position: relative; transition: transform .12s ease, border-color .2s ease; overflow: hidden; border: 1px solid rgba(255,255,255,.04) }
-.bubble-inner { font-size: 13.8px; line-height: 1.45; overflow-x: visible }
+.bubble-inner { font-size: 13.8px; line-height: 1.45; overflow-x: visible; overflow-wrap: anywhere; word-break: break-word }
 .bubble:hover { transform: translateY(-2px) }
 .msg.user .bubble { background: var(--bubble-user); color: white; border-bottom-right-radius: 6px }
 .msg.assistant .bubble { background: var(--bubble-assistant); color: var(--text); border-bottom-left-radius: 6px; border: 1px solid rgba(255,255,255,.06) }
@@ -263,6 +263,10 @@ html[data-theme='light'] .textarea-wrap{ backdrop-filter: blur(6px) saturate(140
 .bubble-inner pre code{background:transparent;padding:0}
 .bubble-inner ul{padding-left:16px}
 .bubble-inner p, .bubble-inner li { white-space: pre-wrap }
+.bubble-inner a { overflow-wrap: anywhere; word-break: break-word }
+.inline-code { overflow-wrap: anywhere; word-break: break-word }
+/* Keep code blocks scrollable horizontally (do not wrap) */
+.code-pre > code, .bubble-inner pre code { overflow-wrap: normal; word-break: normal; white-space: pre }
 /* (reverted: removed aggressive wrap rules) */
 /* Minimal KaTeX tweaks */
 .bubble-inner .katex { color: var(--text) }
@@ -322,6 +326,16 @@ html[data-theme='light'] .hljs-comment{color:#64748b}
   .code-pre > code { font-size: 11px; line-height: 1.45 }
   .inline-code { font-size: .85em }
 }
+
+/* Tool indicator inside assistant bubble */
+.tool-indicator{ display:flex; align-items:center; gap:8px; font-size:12px; color: var(--text-soft); opacity:.9; margin-bottom:6px }
+.tool-indicator .ti-icon{ display:inline-grid; place-items:center; width:16px; height:16px; filter: drop-shadow(0 0 6px rgba(124,58,237,.35)) }
+.tool-indicator .ti-text em{ font-style: italic; color: var(--text) }
+.tool-indicator .ti-dots{ display:inline-flex; margin-left:4px }
+.tool-indicator .ti-dots span{ animation: ti-blink 1.2s infinite ease-in-out; opacity:.35 }
+.tool-indicator .ti-dots span:nth-child(2){ animation-delay:.2s }
+.tool-indicator .ti-dots span:nth-child(3){ animation-delay:.4s }
+@keyframes ti-blink { 0%,100%{ opacity:.2 } 50%{ opacity:1 } }
 
 /* Inline code and code blocks */
 .inline-code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:6px;border:1px solid rgba(255,255,255,.06);font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Noto Sans Mono", "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", monospace; font-size:.9em}

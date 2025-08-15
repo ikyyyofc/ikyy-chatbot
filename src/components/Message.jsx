@@ -153,9 +153,12 @@ function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, acti
         <div className="bubble appear" onClick={() => setShowActions(v => !v)}>
           <div className="bubble-inner">
           {isAssistant && searching && (
-            <div className="tool-indicator" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', opacity: 0.85, marginBottom: '6px' }}>
-              <span role="img" aria-label="searching">🔎</span>
-              <span>{searchingQuery || '...'}</span>
+            <div className="tool-indicator">
+              <span className="ti-icon" role="img" aria-label="browser">🌐</span>
+              <span className="ti-text">
+                <em>{searchingQuery || '...'}</em>
+                <span className="ti-dots"><span>.</span><span>.</span><span>.</span></span>
+              </span>
             </div>
           )}
           <ReactMarkdown
