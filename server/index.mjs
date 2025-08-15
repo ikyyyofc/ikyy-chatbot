@@ -2,7 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { withSystemPrompt } from '../config.js'
-import { chat } from '../lib/vertex.js'
+import { chat } from '../lib/provider.js'
 
 const app = express()
 const port = process.env.PORT || 3001
@@ -105,6 +105,13 @@ app.post('/api/chat/stream', async (req, res) => {
                 isProcessing = false;
             }
         });
+        
+        response.on('error', (err) => {
+          try {
+            if (!res.headersSent) res.status(500)
+            res.end('Streaming error: ' + (err?.message || 'unknown error'))
+          } catch {}
+        })
 
         function processBuffer() {
             const result = extractCompleteJSON(buffer);

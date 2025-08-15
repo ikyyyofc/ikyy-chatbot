@@ -1,5 +1,5 @@
 import { withSystemPrompt } from "../../config.js";
-import { chat } from "../../lib/vertex.js"
+import { chat } from "../../lib/provider.js"
 // In-memory session store in serverless scope (best-effort, warm invocations only)
 const sessions = new Map();
 
@@ -100,6 +100,13 @@ export default async function handler(req, res) {
                 processBuffer();
                 isProcessing = false;
             }
+        });
+
+        response.on("error", (err) => {
+            try {
+                if (!res.headersSent) res.status(500);
+                res.end('Streaming error: ' + (err?.message || 'unknown error'));
+            } catch {}
         });
 
         function processBuffer() {

@@ -1,6 +1,6 @@
-# Chat UI (Vertex AI)
+# Chat UI (Vertex/OpenAI)
 
-UI chat minimal (React + Vite) dengan backend Express/Serverless yang terhubung ke Vertex AI (Firebase Vertex API) dan mendukung streaming respons.
+UI chat minimal (React + Vite) dengan backend Express/Serverless yang terhubung ke Vertex AI (Firebase Vertex API) atau OpenAI dan mendukung streaming respons.
 
 ## Setup
 
@@ -12,16 +12,29 @@ UI chat minimal (React + Vite) dengan backend Express/Serverless yang terhubung 
 ## Notes
 
 - Server menambahkan system prompt singkat dalam Bahasa Indonesia.
-- Default provider: Vertex AI. Model default: `gemini-2.5-flash` (bisa dioverride via env).
+- Default provider: OpenAI. Anda bisa ganti ke Vertex via `config.js` atau env.
 - Streaming respons tersedia di endpoint: `/api/chat/stream`.
 
 ## Konfigurasi AI
 
+- Pilih penyedia model di `config.js`:
+  - `MODEL_PROVIDER`: `vertex` (default) atau `openai`.
+  - `OPENAI_MODEL`: nama model OpenAI (default: `gpt-4.1`).
 - Autentikasi Vertex telah ditanam langsung di `lib/vertex.js` sesuai permintaan, sehingga tidak perlu environment variables untuk kredensial.
+- Untuk OpenAI, set environment variable: `OPENAI_API_KEY`.
 - Pengaturan yang masih bisa diubah via env (opsional) ada di `config.js`:
   - `SYSTEM_PROMPT`: pesan sistem yang ditambahkan ke awal percakapan.
   - `GREETING_INSTRUCTION`: instruksi untuk sapaan awal.
   - `PORT`: port server lokal.
+
+### Internet Tools (OpenAI)
+
+- Mode OpenAI menggunakan satu custom tool untuk info real-time via API eksternal:
+  - `realtime_info(query)`: memanggil `https://anabot.my.id/api/ai/perplexity` dengan param `prompt` dan `apikey`, lalu mengembalikan ringkasan dan daftar sumber.
+- Konfigurasi di `.env` atau `config.js`:
+  - `REALTIME_API_URL` (default: `https://anabot.my.id/api/ai/perplexity`)
+  - `REALTIME_API_KEY` (default: `freeApikey`)
+- Model akan memanggil tool otomatis (tool_choice `auto`) dan mengutip URL sumber pada jawaban akhir.
 
 Helper:
 - `withSystemPrompt(messages)`: menambahkan system prompt secara konsisten.

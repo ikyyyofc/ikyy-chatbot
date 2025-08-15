@@ -632,7 +632,7 @@ export default function App() {
           <div className="brand-sub"><span className="typing-text"><TypingText texts={["Asisten Virtual","AI Temanmu","Selalu Siap Bantu","Modern & Futuristik"]} loop={true} /></span><span className="caret"></span></div>
         </div>
         <div className="controls">
-          {/* fixed model: gpt-5-chat-latest */}
+          {/* fixed model: gpt-4.1 (default via config) */}
           <button className="icon-btn reset-btn" onClick={resetChat} aria-label="Reset chat" title="Reset">
             <ResetIcon />
           </button>
