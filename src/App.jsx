@@ -398,7 +398,10 @@ export default function App() {
       
     } catch (err) {
       console.error(err)
-      setMessages([{ id: nextIdRef.current++, role: 'assistant', content: 'Halo! Ada yang bisa kubantu hari ini?' }])
+      // Jangan tampilkan fallback greeting jika dibatalkan
+      if (err?.name !== 'AbortError') {
+        setMessages([{ id: nextIdRef.current++, role: 'assistant', content: 'Halo! Ada yang bisa kubantu hari ini?' }])
+      }
     } finally {
       if (myStreamId === streamIdRef.current) {
         const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
@@ -413,10 +416,29 @@ export default function App() {
   }
 
   function stopStreaming() {
-    try { 
-      controller?.abort() 
-      activeAssistantIndexRef.current = null
+    try {
+      controller?.abort()
     } catch {}
+    // Hapus bubble assistant kosong jika dihentikan sebelum ada teks
+    try {
+      setMessages(prev => {
+        if (!prev || prev.length === 0) return prev
+        if (liveAppendRef.current) return prev // sudah ada teks live, biarkan
+        const copy = prev.slice()
+        const lastIndex = copy.length - 1
+        const last = copy[lastIndex]
+        if (last?.role === 'assistant' && !(last?.content)) {
+          copy.pop()
+        }
+        return copy
+      })
+    } catch {}
+    // Bersihkan indikator pencarian agar UI tidak menggantung
+    try {
+      setSearchCount(0)
+      setSearchQuery('')
+    } catch {}
+    activeAssistantIndexRef.current = null
   }
 
   const handleCopy = useCallback(async (text) => {
@@ -477,16 +499,19 @@ export default function App() {
       
     } catch (err) {
       console.error(err)
-      // Isi placeholder dengan pesan error jika gagal
-      setMessages(prev => {
-        const copy = prev.slice()
-        const lastIndex = copy.length - 1
-        const last = copy[lastIndex]
-        if (last?.role === 'assistant' && !last.content) {
-          copy[lastIndex] = { ...last, content: 'Maaf, terjadi kesalahan saat melakukan retry.' }
-        }
-        return copy
-      })
+      // Jangan tampilkan error jika ini pembatalan oleh pengguna
+      if (err?.name !== 'AbortError') {
+        // Isi placeholder dengan pesan error jika gagal
+        setMessages(prev => {
+          const copy = prev.slice()
+          const lastIndex = copy.length - 1
+          const last = copy[lastIndex]
+          if (last?.role === 'assistant' && !last.content) {
+            copy[lastIndex] = { ...last, content: 'Maaf, terjadi kesalahan saat melakukan retry.' }
+          }
+          return copy
+        })
+      }
     } finally {
       if (myStreamId === streamIdRef.current) {
         const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
@@ -550,16 +575,19 @@ export default function App() {
       
     } catch (err) {
       console.error(err)
-      // Isi placeholder dengan pesan error jika gagal
-      setMessages(prev => {
-        const copy = prev.slice()
-        const lastIndex = copy.length - 1
-        const last = copy[lastIndex]
-        if (last?.role === 'assistant' && !last.content) {
-          copy[lastIndex] = { ...last, content: 'Maaf, terjadi kesalahan saat melakukan retry.' }
-        }
-        return copy
-      })
+      // Jangan tampilkan error jika ini pembatalan oleh pengguna
+      if (err?.name !== 'AbortError') {
+        // Isi placeholder dengan pesan error jika gagal
+        setMessages(prev => {
+          const copy = prev.slice()
+          const lastIndex = copy.length - 1
+          const last = copy[lastIndex]
+          if (last?.role === 'assistant' && !last.content) {
+            copy[lastIndex] = { ...last, content: 'Maaf, terjadi kesalahan saat melakukan retry.' }
+          }
+          return copy
+        })
+      }
     } finally {
       if (myStreamId === streamIdRef.current) {
         const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
@@ -623,16 +651,19 @@ export default function App() {
       
     } catch (err) {
       console.error(err)
-      // Isi placeholder dengan pesan error jika gagal
-      setMessages(prev => {
-        const copy = prev.slice()
-        const lastIndex = copy.length - 1
-        const last = copy[lastIndex]
-        if (last?.role === 'assistant' && !last.content) {
-          copy[lastIndex] = { ...last, content: 'Maaf, terjadi kesalahan saat melakukan retry.' }
-        }
-        return copy
-      })
+      // Jangan tampilkan error jika ini pembatalan oleh pengguna
+      if (err?.name !== 'AbortError') {
+        // Isi placeholder dengan pesan error jika gagal
+        setMessages(prev => {
+          const copy = prev.slice()
+          const lastIndex = copy.length - 1
+          const last = copy[lastIndex]
+          if (last?.role === 'assistant' && !last.content) {
+            copy[lastIndex] = { ...last, content: 'Maaf, terjadi kesalahan saat melakukan retry.' }
+          }
+          return copy
+        })
+      }
     } finally {
       if (myStreamId === streamIdRef.current) {
         const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
@@ -652,6 +683,11 @@ export default function App() {
       controller?.abort() 
     } catch {}
     streamIdRef.current += 1
+    // Pastikan indikator pencarian bersih saat reset
+    try {
+      setSearchCount(0)
+      setSearchQuery('')
+    } catch {}
     // Start a fresh greeting
     generateGreeting()
   }
