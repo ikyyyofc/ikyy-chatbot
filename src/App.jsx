@@ -437,6 +437,14 @@ export default function App() {
     try {
       controller?.abort()
     } catch {}
+    // Inform server to cancel upstream and persist partial only
+    try {
+      fetch('/api/chat/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId })
+      }).catch(() => {})
+    } catch {}
     // Hapus bubble assistant kosong jika dihentikan sebelum ada teks
     try {
       setMessages(prev => {

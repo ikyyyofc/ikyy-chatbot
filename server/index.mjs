@@ -8,6 +8,8 @@ const app = express()
 const port = process.env.PORT || 3001
 // In-memory session store: maps sessionId -> [{role, content}, ...]
 const sessions = new Map()
+// Track in-flight streams per session to allow server-side cancel
+const inflight = new Map()
 
 app.use(cors())
 // Parse JSON request bodies for API routes with a generous limit
@@ -25,6 +27,20 @@ app.use((req, res, next) => {
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true })
+})
+
+// Cancel endpoint: abort an in-flight stream for a sessionId
+app.post('/api/chat/cancel', (req, res) => {
+  try {
+    const { sessionId } = req.body || {}
+    if (!sessionId) return res.status(400).json({ ok: false, error: 'sessionId required' })
+    const entry = inflight.get(sessionId)
+    if (!entry) return res.status(200).json({ ok: true, cancelled: false })
+    try { entry.cancel && entry.cancel('client_cancel') } catch {}
+    return res.status(200).json({ ok: true, cancelled: true })
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e?.message || 'cancel failed' })
+  }
 })
 
 // Streaming endpoint: streams text chunks directly
@@ -182,6 +198,8 @@ app.post('/api/chat/stream', async (req, res) => {
       if (!clientClosed) {
         try { res.end() } catch {}
       }
+      // Clean up in-flight tracker
+      try { if (sessionId) inflight.delete(sessionId) } catch {}
     }
 
     // Wire client disconnect to abort upstream and finalize with partial text
@@ -211,6 +229,17 @@ app.post('/api/chat/stream', async (req, res) => {
     })
 
     response.on("end", () => finish('upstream_end'))
+
+    // Register this stream to allow cancel from a separate request
+    if (sessionId) {
+      inflight.set(sessionId, {
+        cancel: (why = 'cancel') => {
+          try { clientClosed = true } catch {}
+          try { response?.destroy?.() } catch {}
+          try { finish(why) } catch {}
+        }
+      })
+    }
   } catch (err) {
     console.error('stream error', err)
     try {
