@@ -13,27 +13,45 @@
       /* Minimal inline styles for an immediate preloader paint */
       #preloader { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: radial-gradient(1200px 800px at 50% 50%, rgba(18,22,28,.9), rgba(8,10,14,1)) , #090c12; color: #e6f3ff; transition: opacity .45s ease, visibility .45s ease; }
       #preloader.hide { opacity: 0; visibility: hidden; }
-      #preloader .loader { position: relative; width: 140px; height: 140px; }
+      #preloader .loader { position: relative; width: 140px; height: 140px; transform-style: preserve-3d; }
       #preloader .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid transparent; box-shadow: 0 0 18px rgba(0, 180, 255, .25), inset 0 0 22px rgba(0, 180, 255, .15); }
       #preloader .r1 { border-top-color: #00d1ff; border-right-color: #00d1ff; animation: spin 1.2s linear infinite; filter: drop-shadow(0 0 8px rgba(0, 209, 255, .75)); }
       #preloader .r2 { inset: 10px; border-left-color: #7c4dff; border-bottom-color: #7c4dff; animation: spinR 1.6s linear infinite; filter: drop-shadow(0 0 8px rgba(124, 77, 255, .7)); }
       #preloader .r3 { inset: 22px; border-top-color: #00ffa6; border-right-color: #00ffa6; animation: spin 2s linear infinite; filter: drop-shadow(0 0 8px rgba(0, 255, 166, .6)); }
-      #preloader .logo { position: absolute; inset: 0; display: grid; place-items: center; font-family: 'Orbitron', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; font-weight: 800; letter-spacing: 1px; text-shadow: 0 0 16px rgba(0, 180, 255, .55); }
+      #preloader .sweep { position: absolute; inset: -8px; border-radius: 50%; background: conic-gradient(from 0deg, rgba(124, 77, 255, .0), rgba(124, 77, 255, .2) 20%, rgba(0,0,0,0) 60%); filter: blur(8px); animation: sweep 1.8s linear infinite; }
+      #preloader .logo { position: absolute; inset: 0; display: grid; place-items: center; font-family: 'Orbitron', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; font-weight: 800; letter-spacing: 1px; text-shadow: 0 0 16px rgba(0, 180, 255, .55); animation: logoPulse 2.8s ease-in-out infinite; }
       #preloader .glow { position: absolute; inset: -20px; border-radius: 50%; background: radial-gradient(60% 60% at 50% 50%, rgba(0, 180, 255, .25), rgba(0,0,0,0)); filter: blur(20px); animation: pulse 2.2s ease-in-out infinite; }
+      #preloader .scanline { position: absolute; left: 0; right: 0; height: 90px; top: -90px; background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(124,77,255,.08) 35%, rgba(34,211,238,.10) 50%, rgba(255,255,255,0) 100%); filter: blur(6px); animation: scan 3.2s ease-in-out infinite; mix-blend-mode: screen; }
+      #preloader .subtitle { margin-top: 20px; font-family: 'Sora', system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans', sans-serif; font-weight: 600; font-size: 13px; color: #cfe7ff; letter-spacing: .2px; opacity: .9; display: inline-flex; align-items: center; gap: 6px; }
+      #preloader .dots { display: inline-flex; gap: 4px; }
+      #preloader .dots span { width: 4px; height: 4px; border-radius: 50%; background: #a5b4fc; opacity: .35; animation: pre-dot 1.2s infinite ease-in-out; }
+      #preloader .dots span:nth-child(2) { animation-delay: .2s }
+      #preloader .dots span:nth-child(3) { animation-delay: .4s }
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes spinR { to { transform: rotate(-360deg); } }
       @keyframes pulse { 0%,100% { opacity: .55 } 50% { opacity: .9 } }
+      @keyframes sweep { to { transform: rotate(360deg) } }
+      @keyframes logoPulse { 0%,100% { text-shadow: 0 0 16px rgba(0, 180, 255, .35) } 50% { text-shadow: 0 0 22px rgba(0, 180, 255, .75) } }
+      @keyframes scan { 0% { transform: translateY(0) } 100% { transform: translateY(120vh) } }
+      @media (prefers-reduced-motion: reduce) {
+        #preloader .r1, #preloader .r2, #preloader .r3 { animation: none }
+        #preloader .glow, #preloader .sweep, #preloader .scanline, #preloader .logo { animation: none }
+      }
+      @keyframes pre-dot { 0%,100% { opacity: .25 } 50% { opacity: 1 } }
     </style>
   </head>
   <body>
     <div id="preloader" aria-hidden="true">
       <div class="loader" role="progressbar" aria-label="Memuat">
         <span class="glow"></span>
+        <span class="sweep"></span>
         <span class="ring r1"></span>
         <span class="ring r2"></span>
         <span class="ring r3"></span>
         <span class="logo">IKYY</span>
       </div>
+      <span class="scanline" aria-hidden="true"></span>
+      <div class="subtitle">Menyiapkan percakapan <span class="dots"><span></span><span></span><span></span></span></div>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

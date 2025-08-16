@@ -172,6 +172,8 @@ export default function App() {
   // Live streaming buffer to avoid full-list state updates per chunk
   const liveAppendRef = useRef('')
   const [liveTick, setLiveTick] = useState(0)
+  // Track initial greeting readiness to control page preloader hide
+  const introPendingRef = useRef(true)
   const [searchCount, setSearchCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -285,6 +287,13 @@ export default function App() {
     if (!chunk) return
     liveAppendRef.current += chunk
     setLiveTick(t => t + 1)
+    // On first greeting chunk, signal that app is ready (hide preloader)
+    try {
+      if (introPendingRef.current && (activeAssistantIndexRef.current === 0)) {
+        window.dispatchEvent(new Event('app:ready'))
+        introPendingRef.current = false
+      }
+    } catch {}
   }, [])
 
   const sendMessage = useCallback((text) => {
@@ -367,6 +376,8 @@ export default function App() {
       liveAppendRef.current = ''
       return [{ id: nextIdRef.current++, role: 'assistant', content: '' }]
     })
+    // Mark intro as pending until we get the first chunk
+    introPendingRef.current = true
     setLoading(true)
     let myStreamId = 0
     try {
@@ -411,6 +422,13 @@ export default function App() {
         activeAssistantIndexRef.current = null
         setSearchCount(0)
         setSearchQuery('')
+        // If no chunk ever arrived, still hide the preloader gracefully
+        try {
+          if (introPendingRef.current) {
+            window.dispatchEvent(new Event('app:ready'))
+            introPendingRef.current = false
+          }
+        } catch {}
       }
     }
   }
@@ -763,7 +781,13 @@ export default function App() {
               {showTyping ? (
                 <div className="msg assistant">
                   <div className="avatar assistant"><BotIcon /></div>
-                  <div className="bubble typing"><span className="dot" /><span className="dot" /><span className="dot" /></div>
+                  <div className="bubble skeleton" aria-busy="true" aria-label="Sedang mengetik">
+                    <div className="skeleton-lines">
+                      <div className="sk-line w80"></div>
+                      <div className="sk-line w95"></div>
+                      <div className="sk-line w70"></div>
+                    </div>
+                  </div>
                   <div className="spacer" />
                 </div>
               ) : (
