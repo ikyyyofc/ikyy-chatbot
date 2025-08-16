@@ -23,7 +23,7 @@ export const GREETING_INSTRUCTION = getEnv(
 )
 
 // Pemilihan penyedia model: 'vertex' | 'openai'
-export const MODEL_PROVIDER = getEnv('MODEL_PROVIDER', 'openai')
+export const MODEL_PROVIDER = getEnv('MODEL_PROVIDER', 'vertex')
 
 // Nama model untuk masing-masing provider (opsional)
 // Gunakan model default yang kompatibel dengan Chat Completions
