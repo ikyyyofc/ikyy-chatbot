@@ -90,142 +90,122 @@ app.post('/api/chat/stream', async (req, res) => {
     const finalMessages = withSystemPrompt(buildHistory)
 
     const response = await chat(finalMessages);
-        
-        let buffer = '';
-        let isProcessing = false;
-        let assistantText = '';
-        const decoder = new TextDecoder('utf-8');
 
-        response.on("data", (chunk) => {
-            // Gunakan TextDecoder streaming agar multi-byte UTF-8 tidak pecah di batas chunk
-            buffer += decoder.decode(chunk, { stream: true });
-            if (!isProcessing) {
-                isProcessing = true;
-                processBuffer();
-                isProcessing = false;
-            }
-        });
-        
-        response.on('error', (err) => {
-          try {
-            if (!res.headersSent) res.status(500)
-            res.end('Streaming error: ' + (err?.message || 'unknown error'))
-          } catch {}
-        })
+    let buffer = '';
+    let isProcessing = false;
+    let assistantText = '';
+    const decoder = new TextDecoder('utf-8');
+    let clientClosed = false;
+    let finished = false;
 
-        function processBuffer() {
-            while (true) {
-                const result = extractCompleteJSON(buffer);
-                if (!result) break;
-
-                buffer = result.remaining;
-                try {
-                    const obj = JSON.parse(result.json);
-                    if (obj.candidates?.[0]?.content?.parts?.[0]?.text) {
-                        const text = obj.candidates[0].content.parts[0].text
-                        assistantText += text
-                        try { res.write(Buffer.from(text, 'utf8')) } catch { res.write(text) }
-                    }
-                } catch (e) {
-                    // Hanya log error parsing jika dalam mode debug
-                    // console.error("Error parsing JSON:", e);
-                }
-            }
-        }
-
-        function extractCompleteJSON(buffer) {
-            let inString = false;
-            let escapeNext = false;
-            let braceCount = 0;
-            let startIndex = -1;
-            
-            for (let i = 0; i < buffer.length; i++) {
-                const char = buffer[i];
-                
-                // Handle escape sequences
-                if (escapeNext) {
-                    escapeNext = false;
-                    continue;
-                }
-                
-                // Deteksi escape character
-                if (char === '\\' && inString) {
-                    escapeNext = true;
-                    continue;
-                }
-                
-                // Toggle string mode
-                if (char === '"' && !escapeNext) {
-                    inString = !inString;
-                    continue;
-                }
-                
-                // Hanya proses brace di luar string
-                if (!inString) {
-                    if (char === '{') {
-                        if (braceCount === 0) startIndex = i;
-                        braceCount++;
-                    } 
-                    else if (char === '}') {
-                        braceCount--;
-                        if (braceCount === 0 && startIndex !== -1) {
-                            return {
-                                json: buffer.substring(startIndex, i + 1),
-                                remaining: buffer.substring(i + 1)
-                            };
-                        }
-                    }
-                }
-            }
-            return null; // Tidak ada JSON lengkap ditemukan
-        }
-        
-        response.on("end", () => {
-          // Flush decoder untuk menangkap sisa byte parsial terakhir
-          try { buffer += decoder.decode() } catch {}
-          if (buffer.trim()) {
-            processBuffer()
-          }
-          // Persist to session store if using session mode
-          if (sessionId && assistantText) {
-            let hist = sessions.get(sessionId) || []
-            if (resetSession) hist = []
-            if (action === 'retry_last') {
-              // Replace last assistant message with new one
-              // Ensure last item is assistant; if not, append
-              if (hist.length && hist[hist.length - 1].role === 'assistant') {
-                hist[hist.length - 1] = { role: 'assistant', content: assistantText }
-              } else {
-                hist.push({ role: 'assistant', content: assistantText })
+    function processBuffer(shouldWrite = true) {
+      while (true) {
+        const result = extractCompleteJSON(buffer);
+        if (!result) break;
+        buffer = result.remaining;
+        try {
+          const obj = JSON.parse(result.json);
+          if (obj.candidates?.[0]?.content?.parts?.[0]?.text) {
+            const text = obj.candidates[0].content.parts[0].text;
+            assistantText += text;
+            if (shouldWrite && !clientClosed) {
+              try { res.write(Buffer.from(text, 'utf8')) } catch { try { res.write(text) } catch {}
               }
-              sessions.set(sessionId, hist)
-            } else if (action === 'truncate_and_retry') {
-              const { keepUserCount } = req.body || {}
-              // rebuild truncated hist based on count and append assistant
-              let count = 0
-              let keepIdx = -1
-              for (let i = 0; i < hist.length; i++) {
-                if (hist[i]?.role === 'user') {
-                  count++
-                  if (count === keepUserCount) { keepIdx = i; break }
-                }
-              }
-              const newHist = keepIdx >= 0 ? hist.slice(0, keepIdx + 1) : hist
-              newHist.push({ role: 'assistant', content: assistantText })
-              sessions.set(sessionId, newHist)
-            } else if (typeof userMessage === 'string') {
-              if (resetSession) {
-                // Greeting: do not record synthetic user prompt; only assistant
-                hist.push({ role: 'assistant', content: assistantText })
-              } else {
-                hist.push({ role: 'user', content: String(userMessage) })
-                hist.push({ role: 'assistant', content: assistantText })
-              }
-              sessions.set(sessionId, hist)
             }
           }
-          res.end()
-        })
+        } catch (e) {
+          // ignore parse errors for partials
+        }
+      }
+    }
+
+    function extractCompleteJSON(buffer) {
+      let inString = false;
+      let escapeNext = false;
+      let braceCount = 0;
+      let startIndex = -1;
+      for (let i = 0; i < buffer.length; i++) {
+        const char = buffer[i];
+        if (escapeNext) { escapeNext = false; continue }
+        if (char === '\\' && inString) { escapeNext = true; continue }
+        if (char === '"' && !escapeNext) { inString = !inString; continue }
+        if (!inString) {
+          if (char === '{') { if (braceCount === 0) startIndex = i; braceCount++ }
+          else if (char === '}') { braceCount--; if (braceCount === 0 && startIndex !== -1) { return { json: buffer.substring(startIndex, i + 1), remaining: buffer.substring(i + 1) } } }
+        }
+      }
+      return null
+    }
+
+    function persistAssistant() {
+      if (!(sessionId && assistantText)) return;
+      let hist = sessions.get(sessionId) || [];
+      if (resetSession) hist = [];
+      if (action === 'retry_last') {
+        if (hist.length && hist[hist.length - 1].role === 'assistant') {
+          hist[hist.length - 1] = { role: 'assistant', content: assistantText };
+        } else {
+          hist.push({ role: 'assistant', content: assistantText });
+        }
+        sessions.set(sessionId, hist);
+      } else if (action === 'truncate_and_retry') {
+        const { keepUserCount } = req.body || {};
+        let count = 0, keepIdx = -1;
+        for (let i = 0; i < hist.length; i++) {
+          if (hist[i]?.role === 'user') { count++; if (count === keepUserCount) { keepIdx = i; break } }
+        }
+        const newHist = keepIdx >= 0 ? hist.slice(0, keepIdx + 1) : hist;
+        newHist.push({ role: 'assistant', content: assistantText });
+        sessions.set(sessionId, newHist);
+      } else if (typeof userMessage === 'string') {
+        if (resetSession) {
+          hist.push({ role: 'assistant', content: assistantText });
+        } else {
+          hist.push({ role: 'user', content: String(userMessage) });
+          hist.push({ role: 'assistant', content: assistantText });
+        }
+        sessions.set(sessionId, hist);
+      }
+    }
+
+    function finish(reason) {
+      if (finished) return; finished = true;
+      try { buffer += decoder.decode() } catch {}
+      if (buffer.trim()) {
+        // do not write to res when finishing due to client close
+        processBuffer(!clientClosed);
+      }
+      persistAssistant();
+      if (!clientClosed) {
+        try { res.end() } catch {}
+      }
+    }
+
+    // Wire client disconnect to abort upstream and finalize with partial text
+    function handleClientClose() {
+      clientClosed = true;
+      try { response?.destroy?.() } catch {}
+      finish('client_closed');
+    }
+    req.on('aborted', handleClientClose);
+    res.on('close', () => {
+      // close also fires after 'end'; guard with flags
+      if (!finished) handleClientClose();
+    });
+
+    response.on("data", (chunk) => {
+      buffer += (() => { try { return decoder.decode(chunk, { stream: true }) } catch { return chunk.toString?.() || String(chunk) } })();
+      if (!isProcessing) { isProcessing = true; processBuffer(true); isProcessing = false; }
+    });
+
+    response.on('error', (err) => {
+      try {
+        if (!res.headersSent && !clientClosed) res.status(500)
+        if (!clientClosed) res.end('Streaming error: ' + (err?.message || 'unknown error'))
+      } catch {}
+    })
+
+    response.on("end", () => finish('upstream_end'))
   } catch (err) {
     console.error('stream error', err)
     try {
