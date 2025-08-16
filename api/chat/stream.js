@@ -163,8 +163,11 @@ export default async function handler(req, res) {
 
         function finish(reason) {
             if (finished) return; finished = true;
-            try { buffer += decoder.decode() } catch {}
-            if (buffer.trim()) processBuffer(!clientClosed);
+            // On client abort, do not parse/process leftover buffer.
+            if (!clientClosed) {
+                try { buffer += decoder.decode() } catch {}
+                if (buffer.trim()) processBuffer(true);
+            }
             persistAssistant();
             if (!clientClosed) {
               try { res.end() } catch {}
@@ -180,6 +183,7 @@ export default async function handler(req, res) {
         res.on('close', () => { if (!finished) handleClientClose(); });
 
         response.on("data", chunk => {
+            if (finished || clientClosed) return;
             buffer += (() => { try { return decoder.decode(chunk, { stream: true }) } catch { return chunk.toString?.() || String(chunk) } })();
             if (!isProcessing) { isProcessing = true; processBuffer(true); isProcessing = false; }
         });

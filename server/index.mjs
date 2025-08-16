@@ -170,10 +170,13 @@ app.post('/api/chat/stream', async (req, res) => {
 
     function finish(reason) {
       if (finished) return; finished = true;
-      try { buffer += decoder.decode() } catch {}
-      if (buffer.trim()) {
-        // do not write to res when finishing due to client close
-        processBuffer(!clientClosed);
+      // If the client aborted, do NOT parse/process any leftover buffer.
+      // Persist only what has already been parsed (and shown to the client).
+      if (!clientClosed) {
+        try { buffer += decoder.decode() } catch {}
+        if (buffer.trim()) {
+          processBuffer(true);
+        }
       }
       persistAssistant();
       if (!clientClosed) {
@@ -194,6 +197,8 @@ app.post('/api/chat/stream', async (req, res) => {
     });
 
     response.on("data", (chunk) => {
+      // Ignore any further data if finished/aborted
+      if (finished || clientClosed) return;
       buffer += (() => { try { return decoder.decode(chunk, { stream: true }) } catch { return chunk.toString?.() || String(chunk) } })();
       if (!isProcessing) { isProcessing = true; processBuffer(true); isProcessing = false; }
     });
