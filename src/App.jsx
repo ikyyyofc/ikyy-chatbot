@@ -21,6 +21,7 @@ import {
   StopIcon 
 } from './components/Icons.jsx'
 import { GREETING_INSTRUCTION } from '../config.js'
+import { copyText } from './utils/clipboard.js'
 import { Virtuoso } from 'react-virtuoso'
 
 function Avatar({ kind }) {
@@ -460,7 +461,7 @@ export default function App() {
   }
 
   const handleCopy = useCallback(async (text) => {
-    try { await navigator.clipboard.writeText(text || '') } catch {}
+    try { await copyText(text || '') } catch {}
   }, [])
 
   // Saat fokus ke input, jaga scroll: hanya auto-scroll ke bawah jika memang sedang di bawah

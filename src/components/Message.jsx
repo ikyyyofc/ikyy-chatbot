@@ -6,6 +6,7 @@ import remarkBreaks from 'remark-breaks'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
+import { copyText } from '../utils/clipboard.js'
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
 import typescript from 'highlight.js/lib/languages/typescript'
@@ -106,7 +107,7 @@ function Code({ inline, className, children, node }) {
   const fileLabel = fileMatch ? (fileMatch[1] || fileMatch[2] || fileMatch[3]) : ''
 
   async function onCopy() {
-    try { await navigator.clipboard.writeText(raw) } catch {}
+    try { await copyText(raw) } catch {}
   }
   
   return (
@@ -196,7 +197,7 @@ function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, acti
               </button>
             )}
             {onCopy && (
-              <button className="action" disabled={actionsDisabled} onClick={() => { if (!actionsDisabled) onCopy(content) }} title="Copy" aria-label="Copy">
+              <button className="action" onClick={() => { onCopy(content) }} title="Copy" aria-label="Copy">
                 <CopyIcon />
               </button>
             )}

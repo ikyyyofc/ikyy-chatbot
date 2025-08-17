@@ -1,5 +1,15 @@
 {
   "cleanUrls": true,
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://your-backend.example.com/api/$1"
+    },
+    {
+      "source": "/((?!api).*)",
+      "destination": "/"
+    }
+  ]
 }
