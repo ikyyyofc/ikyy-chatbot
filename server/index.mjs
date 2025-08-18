@@ -1,11 +1,12 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import { randomBytes } from 'crypto'
 import { withSystemPrompt } from '../config.js'
 import { chat } from '../lib/provider.js'
 
 const app = express()
-const port = process.env.PORT || 3001
+const port = process.env.PORT || 7860
 // In-memory session store: maps sessionId -> [{role, content}, ...]
 const sessions = new Map()
 
@@ -22,6 +23,19 @@ app.use((req, res, next) => {
 })
 
 // Server ini hanya untuk API (frontend dilayani oleh Vite saat dev)
+
+// Root endpoint untuk health check sederhana
+function randomAlphaNum(len = 20) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const bytes = randomBytes(len)
+  let out = ''
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length]
+  return out
+}
+
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', health: randomAlphaNum(20) })
+})
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true })

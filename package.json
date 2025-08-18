@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -n web,api -c green,blue \"vite\" \"node server/index.mjs\"",
-    "start": "npx pm2 start server/index.mjs && vite",
+    "start": "node server/index.mjs",
     "dev:web": "vite",
     "dev:api": "node server/index.mjs",
     "build": "vite build",
-    "preview": "vite preview --port 7860"
+    "preview": "vite preview --port 5173"
   },
   "dependencies": {
     "axios": "^1.11.0",
@@ -30,7 +30,6 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^3.1.0",
     "concurrently": "^9.0.1",
-    "pm2": "latest",
     "vite": "^4.5.3"
   }
 }
