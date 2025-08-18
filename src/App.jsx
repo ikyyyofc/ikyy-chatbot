@@ -614,7 +614,7 @@ export default function App() {
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, action: 'truncate_and_retry', keepUserCount }),
+        body: JSON.stringify({ sessionId, action: 'truncate_and_retry', keepUserCount, clientStreamId: myStreamId }),
         signal: ac.signal
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
