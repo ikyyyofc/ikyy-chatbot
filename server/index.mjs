@@ -56,7 +56,7 @@ app.post('/api/chat/stream', async (req, res) => {
 
     // disable buffering for proxies, enable chunked
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Cache-Control', 'no-cache, no-transform')
     res.setHeader('Connection', 'keep-alive')
     res.setHeader('X-Accel-Buffering', 'no')
     if (typeof res.flushHeaders === 'function') res.flushHeaders()
@@ -117,6 +117,8 @@ app.post('/api/chat/stream', async (req, res) => {
     let buffer = '';
     let isProcessing = false;
     let assistantText = '';
+    // Track only what has been delivered (written) to client
+    let deliveredText = '';
     const decoder = new TextDecoder('utf-8');
     let clientClosed = false;
     let finished = false;
@@ -135,6 +137,8 @@ app.post('/api/chat/stream', async (req, res) => {
             if (shouldWrite && !clientClosed) {
               try { res.write(Buffer.from(text, 'utf8')) } catch { try { res.write(text) } catch {}
               }
+              // Count only text that was actually written to client
+              deliveredText += text;
             }
           }
         } catch (e) {
@@ -163,14 +167,17 @@ app.post('/api/chat/stream', async (req, res) => {
 
     function persistAssistant() {
       if (persisted) return; // guard against double persist
-      if (!(sessionId && assistantText)) return;
+      // Decide which text to persist: delivered-only for client/external stop; full for normal end
+      const shouldUseDelivered = (!!streamKey && (clientClosed || externalStops.get(streamKey)))
+      const textToPersist = shouldUseDelivered ? deliveredText : assistantText
+      if (!(sessionId && textToPersist)) return;
       let hist = sessions.get(sessionId) || [];
       if (resetSession) hist = [];
       if (action === 'retry_last') {
         if (hist.length && hist[hist.length - 1].role === 'assistant') {
-          hist[hist.length - 1] = { role: 'assistant', content: assistantText };
+          hist[hist.length - 1] = { role: 'assistant', content: textToPersist };
         } else {
-          hist.push({ role: 'assistant', content: assistantText });
+          hist.push({ role: 'assistant', content: textToPersist });
         }
         sessions.set(sessionId, hist);
       } else if (action === 'truncate_and_retry') {
@@ -180,14 +187,14 @@ app.post('/api/chat/stream', async (req, res) => {
           if (hist[i]?.role === 'user') { count++; if (count === keepUserCount) { keepIdx = i; break } }
         }
         const newHist = keepIdx >= 0 ? hist.slice(0, keepIdx + 1) : hist;
-        newHist.push({ role: 'assistant', content: assistantText });
+        newHist.push({ role: 'assistant', content: textToPersist });
         sessions.set(sessionId, newHist);
       } else if (typeof userMessage === 'string') {
         if (resetSession) {
-          hist.push({ role: 'assistant', content: assistantText });
+          hist.push({ role: 'assistant', content: textToPersist });
         } else {
           hist.push({ role: 'user', content: String(userMessage) });
-          hist.push({ role: 'assistant', content: assistantText });
+          hist.push({ role: 'assistant', content: textToPersist });
         }
         sessions.set(sessionId, hist);
       }
