@@ -158,6 +158,8 @@ export default function App() {
   })
   const [loading, setLoading] = useState(false)
   const [controller, setController] = useState(null)
+  // Track current ReadableStream reader to allow hard-cancel
+  const readerRef = useRef(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const menuBtnRef = useRef(null)
@@ -325,6 +327,7 @@ export default function App() {
         })
         if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
         const reader = res.body.getReader()
+        readerRef.current = reader
         const decoder = new TextDecoder()
         let gotFirstChunk = false
         
@@ -357,6 +360,8 @@ export default function App() {
           })
         }
       } finally {
+        // Clear reader ref so Stop won't try cancel a finished stream
+        if (readerRef.current) readerRef.current = null
         if (myStreamId === streamIdRef.current) {
           const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
           flushLiveToState(targetIndex)
@@ -394,6 +399,7 @@ export default function App() {
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
       const reader = res.body.getReader()
+      readerRef.current = reader
       const decoder = new TextDecoder()
       
       while (true) {
@@ -415,6 +421,7 @@ export default function App() {
         setMessages([{ id: nextIdRef.current++, role: 'assistant', content: 'Halo! Ada yang bisa kubantu hari ini?' }])
       }
     } finally {
+      if (readerRef.current) readerRef.current = null
       if (myStreamId === streamIdRef.current) {
         const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
         flushLiveToState(targetIndex)
@@ -436,6 +443,11 @@ export default function App() {
 
   function stopStreaming() {
     try {
+      // Cancel the active reader first to force-close body stream
+      if (readerRef.current) {
+        try { readerRef.current.cancel() } catch {}
+        readerRef.current = null
+      }
       controller?.abort()
     } catch {}
     // Hapus bubble assistant kosong jika dihentikan sebelum ada teks
@@ -580,6 +592,7 @@ export default function App() {
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
       const reader = res.body.getReader()
+      readerRef.current = reader
       const decoder = new TextDecoder()
       while (true) {
         const { value, done } = await reader.read()
@@ -608,6 +621,7 @@ export default function App() {
         })
       }
     } finally {
+      if (readerRef.current) readerRef.current = null
       if (myStreamId === streamIdRef.current) {
         const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
         flushLiveToState(targetIndex)
@@ -656,6 +670,7 @@ export default function App() {
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
       const reader = res.body.getReader()
+      readerRef.current = reader
       const decoder = new TextDecoder()
       while (true) {
         const { value, done } = await reader.read()
@@ -684,6 +699,7 @@ export default function App() {
         })
       }
     } finally {
+      if (readerRef.current) readerRef.current = null
       if (myStreamId === streamIdRef.current) {
         const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
         flushLiveToState(targetIndex)
