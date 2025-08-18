@@ -221,6 +221,14 @@ app.post('/api/chat/stream', async (req, res) => {
       record.finish = finish
       record.persist = persistAssistant
       activeStreams.set(streamKey, record)
+      // If a stop signal arrived before we registered this stream,
+      // immediately finalize to avoid persisting a full answer later.
+      if (externalStops.get(streamKey)) {
+        try { record.persist?.() } catch {}
+        try { response?.destroy?.() } catch {}
+        try { finish('preexisting_external_stop') } catch {}
+        return
+      }
     }
 
     // Wire client disconnect to abort upstream and finalize with partial text
