@@ -450,6 +450,22 @@ export default function App() {
       }
       controller?.abort()
     } catch {}
+    // Segera commit buffer live ke state agar tidak menghilang dari UI
+    try {
+      const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
+      if (liveAppendRef.current) {
+        setMessages(prev => {
+          const copy = [...prev]
+          const idx = Math.min(targetIndex, copy.length - 1)
+          const last = copy[idx]
+          if (last?.role === 'assistant') {
+            copy[idx] = { ...last, content: (last.content || '') + liveAppendRef.current }
+          }
+          return copy
+        })
+        liveAppendRef.current = ''
+      }
+    } catch {}
     // Inform backend to stop the upstream stream even if proxy keeps connection
     try {
       const id = streamIdRef.current
@@ -466,7 +482,6 @@ export default function App() {
     try {
       setMessages(prev => {
         if (!prev || prev.length === 0) return prev
-        if (liveAppendRef.current) return prev // sudah ada teks live, biarkan
         const copy = prev.slice()
         const lastIndex = copy.length - 1
         const last = copy[lastIndex]
