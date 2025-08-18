@@ -2,11 +2,14 @@
   "cleanUrls": true,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [
+  "redirects": [
     {
       "source": "/api/(.*)",
-      "destination": "https://ikyy-ikyy-chatbot.hf.space/api/$1"
-    },
+      "destination": "https://ikyy-ikyy-chatbot.hf.space/api/$1",
+      "statusCode": 307
+    }
+  ],
+  "rewrites": [
     {
       "source": "/((?!api).*)",
       "destination": "/"
