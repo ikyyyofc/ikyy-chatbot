@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://your-backend.example.com/api/$1"
+      "destination": "https://ikyy-ikyy-chatbot.hf.space/api/$1"
     },
     {
       "source": "/((?!api).*)",
