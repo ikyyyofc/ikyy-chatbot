@@ -9,6 +9,11 @@ const app = express()
 const port = process.env.PORT || 7860
 // In-memory session store: maps sessionId -> [{role, content}, ...]
 const sessions = new Map()
+// Track active upstream streams to allow external stop (useful behind proxies)
+// Key: `${sessionId}:${clientStreamId}` -> { response, res }
+const activeStreams = new Map()
+// External stop flags: `${sessionId}:${clientStreamId}` -> true
+const externalStops = new Map()
 
 app.use(cors())
 // Parse JSON request bodies for API routes with a generous limit
@@ -44,7 +49,8 @@ app.get('/api/health', (req, res) => {
 // Streaming endpoint: streams text chunks directly
 app.post('/api/chat/stream', async (req, res) => {
   try {
-    const { messages, sessionId, userMessage, resetSession, action } = req.body || {}
+    const { messages, sessionId, userMessage, resetSession, action, clientStreamId } = req.body || {}
+    const streamKey = (sessionId && clientStreamId) ? `${sessionId}:${clientStreamId}` : null
 
     // disable buffering for proxies, enable chunked
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
@@ -104,6 +110,9 @@ app.post('/api/chat/stream', async (req, res) => {
     const finalMessages = withSystemPrompt(buildHistory)
 
     const response = await chat(finalMessages);
+    if (streamKey) {
+      activeStreams.set(streamKey, { response, res })
+    }
 
     let buffer = '';
     let isProcessing = false;
@@ -185,6 +194,10 @@ app.post('/api/chat/stream', async (req, res) => {
     function finish(reason) {
       if (finished) return; finished = true;
       try { buffer += decoder.decode() } catch {}
+      // If externally stopped (e.g., via /api/chat/stop), treat as client closed
+      if (streamKey && externalStops.get(streamKey)) {
+        clientClosed = true
+      }
       if (buffer.trim()) {
         // do not write to res when finishing due to client close
         processBuffer(!clientClosed);
@@ -192,6 +205,11 @@ app.post('/api/chat/stream', async (req, res) => {
       persistAssistant();
       if (!clientClosed) {
         try { res.end() } catch {}
+      }
+      // cleanup tracking maps
+      if (streamKey) {
+        activeStreams.delete(streamKey)
+        externalStops.delete(streamKey)
       }
     }
 
@@ -225,6 +243,28 @@ app.post('/api/chat/stream', async (req, res) => {
     try {
       if (!res.headersSent) res.status(500)
       res.end('Streaming error: ' + (err?.message || 'unknown error'))
+    } catch {}
+  }
+})
+
+// External stop endpoint: allows frontend to signal server to stop a running stream
+// Useful when client connection abort does not propagate through proxies (e.g., Vercel rewrite)
+app.post('/api/chat/stop', (req, res) => {
+  try {
+    const { sessionId, clientStreamId } = req.body || {}
+    if (!sessionId || !clientStreamId) {
+      res.status(400)
+      return res.json({ ok: false, error: 'sessionId and clientStreamId are required' })
+    }
+    const key = `${sessionId}:${clientStreamId}`
+    externalStops.set(key, true)
+    const active = activeStreams.get(key)
+    try { active?.response?.destroy?.() } catch {}
+    // do not touch active.res; original handler will clean up
+    return res.json({ ok: true })
+  } catch (e) {
+    try {
+      res.status(500).json({ ok: false, error: String(e?.message || 'stop failed') })
     } catch {}
   }
 })

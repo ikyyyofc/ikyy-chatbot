@@ -322,7 +322,7 @@ export default function App() {
         const res = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId, userMessage: userMsg.content }),
+          body: JSON.stringify({ sessionId, userMessage: userMsg.content, clientStreamId: myStreamId }),
           signal: ac.signal
         })
         if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
@@ -394,7 +394,7 @@ export default function App() {
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, userMessage: GREETING_INSTRUCTION, resetSession: true }),
+        body: JSON.stringify({ sessionId, userMessage: GREETING_INSTRUCTION, resetSession: true, clientStreamId: myStreamId }),
         signal: ac.signal
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
@@ -449,6 +449,18 @@ export default function App() {
         readerRef.current = null
       }
       controller?.abort()
+    } catch {}
+    // Inform backend to stop the upstream stream even if proxy keeps connection
+    try {
+      const id = streamIdRef.current
+      if (id && sessionId) {
+        fetch('/api/chat/stop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, clientStreamId: id }),
+          keepalive: true
+        }).catch(() => {})
+      }
     } catch {}
     // Hapus bubble assistant kosong jika dihentikan sebelum ada teks
     try {
@@ -511,7 +523,7 @@ export default function App() {
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, action: 'truncate_and_retry', keepUserCount }),
+        body: JSON.stringify({ sessionId, action: 'truncate_and_retry', keepUserCount, clientStreamId: myStreamId }),
         signal: ac.signal
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
@@ -665,7 +677,7 @@ export default function App() {
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, action: 'retry_last' }),
+        body: JSON.stringify({ sessionId, action: 'retry_last', clientStreamId: myStreamId }),
         signal: ac.signal
       })
       if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
