@@ -51,6 +51,8 @@ app.post('/api/chat/stream', async (req, res) => {
   try {
     const { messages, sessionId, userMessage, resetSession, action, clientStreamId } = req.body || {}
     const streamKey = (sessionId && clientStreamId) ? `${sessionId}:${clientStreamId}` : null
+    // Prepare tracking record early; will fill finish/persist later
+    const record = streamKey ? { response: null, res, finish: null, persist: null } : null
 
     // disable buffering for proxies, enable chunked
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
@@ -110,9 +112,7 @@ app.post('/api/chat/stream', async (req, res) => {
     const finalMessages = withSystemPrompt(buildHistory)
 
     const response = await chat(finalMessages);
-    if (streamKey) {
-      activeStreams.set(streamKey, { response, res })
-    }
+    if (record) { record.response = response }
 
     let buffer = '';
     let isProcessing = false;
@@ -120,6 +120,7 @@ app.post('/api/chat/stream', async (req, res) => {
     const decoder = new TextDecoder('utf-8');
     let clientClosed = false;
     let finished = false;
+    let persisted = false;
 
     function processBuffer(shouldWrite = true) {
       while (true) {
@@ -161,6 +162,7 @@ app.post('/api/chat/stream', async (req, res) => {
     }
 
     function persistAssistant() {
+      if (persisted) return; // guard against double persist
       if (!(sessionId && assistantText)) return;
       let hist = sessions.get(sessionId) || [];
       if (resetSession) hist = [];
@@ -189,6 +191,7 @@ app.post('/api/chat/stream', async (req, res) => {
         }
         sessions.set(sessionId, hist);
       }
+      persisted = true;
     }
 
     function finish(reason) {
@@ -211,6 +214,13 @@ app.post('/api/chat/stream', async (req, res) => {
         activeStreams.delete(streamKey)
         externalStops.delete(streamKey)
       }
+    }
+
+    // Fill tracking record once finish/persist exist
+    if (record && streamKey) {
+      record.finish = finish
+      record.persist = persistAssistant
+      activeStreams.set(streamKey, record)
     }
 
     // Wire client disconnect to abort upstream and finalize with partial text
@@ -259,7 +269,10 @@ app.post('/api/chat/stop', (req, res) => {
     const key = `${sessionId}:${clientStreamId}`
     externalStops.set(key, true)
     const active = activeStreams.get(key)
+    // Persist whatever we have immediately and finalize
+    try { active?.persist?.() } catch {}
     try { active?.response?.destroy?.() } catch {}
+    try { active?.finish?.('external_stop') } catch {}
     // do not touch active.res; original handler will clean up
     return res.json({ ok: true })
   } catch (e) {
