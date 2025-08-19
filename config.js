@@ -34,6 +34,8 @@ export const OPENAI_MODEL = getEnv('OPENAI_MODEL', 'gpt-4.1')
 // Realtime info API (untuk OpenAI tools)
 export const REALTIME_API_URL = getEnv('REALTIME_API_URL', 'https://anabot.my.id/api/ai/perplexity')
 export const REALTIME_API_KEY = getEnv('REALTIME_API_KEY', 'freeApikey')
+// Pilih sumber tool realtime: 'http' (default, pakai REALTIME_API_URL) atau 'felo' (pakai lib/felo.js)
+export const REALTIME_TOOL_PROVIDER = getEnv('REALTIME_TOOL_PROVIDER', 'felo')
 
 // Helper to prepend the system/developer prompt consistently
 export function withSystemPrompt(messages = []) {

@@ -30,12 +30,9 @@ UI chat minimal (React + Vite) dengan backend Express/Serverless yang terhubung 
 
 ### Internet Tools (OpenAI)
 
-- Mode OpenAI menggunakan satu custom tool untuk info real-time via API eksternal:
-  - `realtime_info(query)`: memanggil `https://anabot.my.id/api/ai/perplexity` dengan param `prompt` dan `apikey`, lalu mengembalikan ringkasan dan daftar sumber.
-- Konfigurasi di `.env` atau `config.js`:
-  - `REALTIME_API_URL` (default: `https://anabot.my.id/api/ai/perplexity`)
-  - `REALTIME_API_KEY` (default: `freeApikey`)
-- Model akan memanggil tool otomatis (tool_choice `auto`) dan mengutip URL sumber pada jawaban akhir.
+- Mode OpenAI menggunakan satu tool real-time `realtime_info(query)` yang kini DIKUNCI ke library Felo (`lib/felo.js`). Tool ini melakukan penelusuran via felo.ai dan mengembalikan ringkasan + daftar sumber (URL).
+- Tidak ada lagi panggilan ke HTTP API eksternal untuk real-time; konfigurasi `REALTIME_API_URL`/`REALTIME_API_KEY` diabaikan.
+- Model memanggil tool otomatis (`tool_choice: auto`) dan diminta mengutip URL sumber di jawaban akhir.
 
 Helper:
 - `withSystemPrompt(messages)`: menambahkan system prompt secara konsisten.
