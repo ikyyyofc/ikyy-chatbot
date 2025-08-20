@@ -45,3 +45,8 @@ export function withSystemPrompt(messages = []) {
         ...(Array.isArray(messages) ? messages : [])
     ];
 }
+
+// Streaming behavior: if true, allow pre-tool text deltas to stream immediately.
+// When false (default), buffer pre-tool text to avoid showing partial answers
+// before realtime verification occurs.
+export const STREAM_PRE_TOOL = String(getEnv('STREAM_PRE_TOOL', 'true')).toLowerCase() === 'true'
