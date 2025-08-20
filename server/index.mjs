@@ -3,7 +3,6 @@ import express from 'express'
 import cors from 'cors'
 import { randomBytes } from 'crypto'
 import { withSystemPrompt } from '../config.js'
-import { felosearch } from '../lib/felo.js'
 import { chat } from '../lib/provider.js'
 
 const app = express()
@@ -110,89 +109,29 @@ app.post('/api/chat/stream', async (req, res) => {
       return res.end('messages array or sessionId+userMessage is required')
     }
 
-    // Augment: inject current datetime and realtime context for time-sensitive queries
-    function nowContext({ tz = 'Asia/Jakarta', locale = 'id-ID' } = {}) {
+    // Inject current datetime as a neutral system context (no heuristics)
+    function buildDatetimeSystemMessage() {
       try {
+        const tz = 'Asia/Jakarta'
         const now = new Date()
         const iso = now.toISOString()
-        const fmt = new Intl.DateTimeFormat(locale, {
-          timeZone: tz,
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-          hour: '2-digit', minute: '2-digit', second: '2-digit'
-        })
-        const formatted = fmt.format(now)
-        return { formatted, iso, tz, locale }
+        let formatted = iso
+        try {
+          const fmt = new Intl.DateTimeFormat('id-ID', {
+            timeZone: tz,
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+          })
+          formatted = fmt.format(now)
+        } catch {}
+        return { role: 'system', content: `Tanggal/waktu server saat ini: ${formatted} (ISO: ${iso}, TZ: ${tz}). Gunakan jika pengguna menyinggung waktu atau tren terkini.` }
       } catch {
-        const now = new Date()
-        return { formatted: now.toString(), iso: now.toISOString(), tz: 'UTC', locale: 'id-ID' }
+        return null
       }
     }
 
-    function isTimeSensitive(qRaw) {
-      if (!qRaw) return false
-      const q = String(qRaw).toLowerCase()
-      const triggers = [
-        'kapan', 'rilis', 'dirilis', 'tanggal rilis', 'peluncuran', 'launch', 'release',
-        'hari ini', 'sekarang', 'today', 'now', 'kemarin', 'besok', 'tahun ini', 'bulan ini', 'minggu ini',
-        'jam berapa', 'tanggal berapa', 'hari apa', 'waktu saat ini',
-        'status', 'terkini', 'update', 'latest', 'baru',
-        'harga', 'kurs', 'nilai tukar', 'cuaca', 'weather', 'skor', 'hasil pertandingan', 'gempa', 'bencana',
-        'ipo', 'dividen', 'earnings', 'inflasi', 'suku bunga', 'pemilu', 'election'
-      ]
-      return triggers.some(t => q.includes(t))
-    }
-
-    async function buildRealtimeSystemMessage(q) {
-      const now = nowContext()
-      let summary = ''
-      let links = []
-      try {
-        const { text, sources } = await felosearch(q)
-        summary = (text || '').trim()
-        links = Array.isArray(sources) ? sources.map(s => s?.link).filter(Boolean) : []
-      } catch (e) {
-        summary = ''
-        links = []
-      }
-      const topLinks = links.slice(0, 5)
-      const parts = []
-      parts.push(`[REAL-TIME CONTEXT]`)
-      parts.push(`Tanggal/waktu server saat ini: ${now.formatted} (ISO: ${now.iso}, TZ: ${now.tz})`)
-      parts.push(`Pertanyaan pengguna: "${String(q || '').slice(0, 500)}"`)
-      if (summary) parts.push(`Ringkasan realtime: ${summary.slice(0, 1500)}`)
-      if (topLinks.length) parts.push(`Sumber: ${topLinks.join(', ')}`)
-      parts.push(`Instruksi: Jawab berdasarkan konteks di atas. Jangan menebak untuk fakta time-sensitive. Jika ragu atau sumber tidak memadai, jelaskan keterbatasan. Sertakan catatan "Diperbarui per: ${now.formatted}" dan cantumkan URL relevan di akhir.`)
-      return { role: 'system', content: parts.join('\n') }
-    }
-
-    // Determine last user query text
-    let lastUserText = null
-    if (typeof userMessage === 'string' && userMessage.trim()) {
-      lastUserText = String(userMessage)
-    } else if (Array.isArray(buildHistory)) {
-      for (let i = buildHistory.length - 1; i >= 0; i--) {
-        if (buildHistory[i]?.role === 'user' && typeof buildHistory[i]?.content === 'string') {
-          lastUserText = buildHistory[i].content
-          break
-        }
-      }
-    }
-
-    // Always inject current datetime context to reduce temporal hallucination
-    const now = nowContext()
-    const datetimeMsg = { role: 'system', content: `Waktu saat ini: ${now.formatted} (ISO: ${now.iso}, TZ: ${now.tz}). Gunakan waktu ini untuk semua perhitungan terkait tanggal/waktu.` }
-
-    // Optionally add realtime summary for time-sensitive queries
-    const augmented = [...buildHistory]
-    augmented.unshift(datetimeMsg)
-    if (isTimeSensitive(lastUserText)) {
-      try {
-        const rt = await buildRealtimeSystemMessage(lastUserText)
-        augmented.unshift(rt)
-      } catch {}
-    }
-
-    const finalMessages = withSystemPrompt(augmented)
+    const datetimeMsg = buildDatetimeSystemMessage()
+    const finalMessages = withSystemPrompt(datetimeMsg ? [datetimeMsg, ...buildHistory] : buildHistory)
 
     const response = await chat(finalMessages);
     if (record) { record.response = response }
