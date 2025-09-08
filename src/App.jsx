@@ -179,6 +179,8 @@ export default function App() {
   const introPendingRef = useRef(true)
   const [searchCount, setSearchCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
+  const [imageCount, setImageCount] = useState(0)
+  const [imagePrompt, setImagePrompt] = useState('')
 
   // Simpan referensi ke messages untuk akses tanpa trigger render
   const messagesRef = useRef(messages)
@@ -286,6 +288,31 @@ export default function App() {
           return next
         })
       }
+      // Detect generate_image tool markers
+      let imgStarts = 0
+      let imgEnds = 0
+      if (chunk.includes('⟦tool:generate_image:start')) {
+        const re = /⟦tool:generate_image:start(?::([^⟧]*))?⟧/g
+        let m
+        while ((m = re.exec(chunk))) {
+          imgStarts += 1
+          try { if (m[1]) setImagePrompt(decodeURIComponent(m[1])) } catch { setImagePrompt('') }
+        }
+        try { chunk = chunk.replace(/⟦tool:generate_image:start[^⟧]*⟧/g, '') } catch {}
+      }
+      if (chunk.includes('⟦tool:generate_image:end')) {
+        const re2 = /⟦tool:generate_image:end(?::([^⟧]*))?⟧/g
+        let m2
+        while ((m2 = re2.exec(chunk))) { imgEnds += 1 }
+        try { chunk = chunk.replace(/⟦tool:generate_image:end[^⟧]*⟧/g, '') } catch {}
+      }
+      if (imgStarts || imgEnds) {
+        setImageCount((c) => {
+          const next = Math.max(0, c + imgStarts - imgEnds)
+          if (next === 0) setImagePrompt('')
+          return next
+        })
+      }
     } catch {}
     if (!chunk) return
     liveAppendRef.current += chunk
@@ -370,6 +397,8 @@ export default function App() {
           activeAssistantIndexRef.current = null
           setSearchCount(0)
           setSearchQuery('')
+          setImageCount(0)
+          setImagePrompt('')
         }
       }
     })();
@@ -430,6 +459,10 @@ export default function App() {
         activeAssistantIndexRef.current = null
         setSearchCount(0)
         setSearchQuery('')
+        setImageCount(0)
+        setImagePrompt('')
+        setImageCount(0)
+        setImagePrompt('')
         // If no chunk ever arrived, still hide the preloader gracefully
         try {
           if (introPendingRef.current) {
@@ -491,10 +524,12 @@ export default function App() {
         return copy
       })
     } catch {}
-    // Bersihkan indikator pencarian agar UI tidak menggantung
+    // Bersihkan indikator pencarian/gambar agar UI tidak menggantung
     try {
       setSearchCount(0)
       setSearchQuery('')
+      setImageCount(0)
+      setImagePrompt('')
     } catch {}
     activeAssistantIndexRef.current = null
   }
@@ -657,6 +692,8 @@ export default function App() {
         activeAssistantIndexRef.current = null
         setSearchCount(0)
         setSearchQuery('')
+        setImageCount(0)
+        setImagePrompt('')
       }
     }
   }, [loading, retryLastResponse, appendToAssistant, sessionId, flushLiveToState])
@@ -749,6 +786,8 @@ export default function App() {
     try {
       setSearchCount(0)
       setSearchQuery('')
+      setImageCount(0)
+      setImagePrompt('')
     } catch {}
     // Start a fresh greeting
     generateGreeting()
@@ -815,7 +854,8 @@ export default function App() {
           const isLast = i === messages.length - 1
           const isActiveAssistant = m.role === 'assistant' && (i === (typeof activeAssistantIndexRef.current === 'number' ? activeAssistantIndexRef.current : -1))
           const isSearching = searchCount > 0
-          const showTyping = m.role === 'assistant' && isLast && loading && !m.content && !liveAppendRef.current && !isSearching
+          const isImaging = imageCount > 0
+          const showTyping = m.role === 'assistant' && isLast && loading && !m.content && !liveAppendRef.current && !isSearching && !isImaging
           const hasPrevUser = i > 0 ? messages.slice(0, i).some(x => x.role === 'user') : false
           const liveExtra = isActiveAssistant ? (liveAppendRef.current || '') : ''
           const contentToShow = (m.content || '') + liveExtra
@@ -842,6 +882,8 @@ export default function App() {
                   tick={rowTick}
                   searching={searchCount > 0 && isActiveAssistant}
                   searchingQuery={searchQuery}
+                  imaging={isImaging && isActiveAssistant}
+                  imagingText={imagePrompt}
                   onCopy={handleCopy}
                   onRetry={m.role === 'assistant' && hasPrevUser ? handleRetry : undefined}
                   msgId={m.id}

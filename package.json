@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "axios": "^1.11.0",
+    "user-agents": "^1.1.335",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.19.2",

@@ -37,6 +37,21 @@ UI chat minimal (React + Vite) dengan backend Express/Serverless yang terhubung 
 Helper:
 - `withSystemPrompt(messages)`: menambahkan system prompt secara konsisten.
 
+### Image Generation (ai4chat)
+
+- Mode OpenAI punya tool: `generate_image({ prompt, aspect_ratio, size })`.
+  - Menggunakan scraping endpoint `ai4chat` untuk bikin gambar beneran.
+  - Prioritas parameter: `aspect_ratio` (contoh: `1:1`, `16:9`, `2:3`, dst). Jika kosong, akan ditebak dari `size` (mis. `1024x1024` -> `1:1`).
+  - Output berupa URL gambar; model akan render via Markdown, contoh:
+    - `![kucing lucu](https://.../image.png)`
+
+Catatan:
+- Butuh dependensi `user-agents` (sudah ditambahkan). Jalankan `npm install` setelah pull.
+- Fitur aktif bila `MODEL_PROVIDER=openai`.
+- Di provider Vertex saat ini belum ada bridging function-calling custom.
+- UI menampilkan status "Membuat gambar…" saat tool berjalan, jadi user tahu proses lagi jalan.
+- Model otomatis mengonversi permintaan user ke prompt Bahasa Inggris sebelum memanggil tool (akurasi instruksi lebih baik). Caption/jawaban tetap Bahasa Indonesia.
+
 ## Deploy ke Vercel
 
 Repo ini siap dideploy ke Vercel dengan Serverless Functions untuk API streaming.

@@ -145,14 +145,14 @@ function normalizeMathDelimiters(text) {
   return text
 }
 
-function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, actionsDisabled = false, searching = false, searchingQuery = '' }) {
+function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, actionsDisabled = false, searching = false, searchingQuery = '', imaging = false, imagingText = '' }) {
   const isAssistant = role === 'assistant'
   const [showActions, setShowActions] = useState(false)
   return (
     <>
       <div className={`msg ${role}`}>
         {isAssistant ? <div className="avatar assistant"><BotIcon /></div> : <div className="spacer" />}
-        <div className={`bubble appear${isAssistant && searching ? ' wide' : ''}`} onClick={() => setShowActions(v => !v)}>
+        <div className={`bubble appear${isAssistant && (searching || imaging) ? ' wide' : ''}`} onClick={() => setShowActions(v => !v)}>
           <div className="bubble-inner">
           {isAssistant && searching && (
             <div className="search-status" aria-busy="true">
@@ -163,6 +163,24 @@ function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, acti
               </div>
               {searchingQuery ? (
                 <div className="ss-query" title={searchingQuery}>{searchingQuery}</div>
+              ) : null}
+              <div className="ss-meter" aria-hidden="true"></div>
+              <div className="ss-pills" aria-hidden="true">
+                <span className="pill p1"></span>
+                <span className="pill p2"></span>
+                <span className="pill p3"></span>
+              </div>
+            </div>
+          )}
+          {isAssistant && imaging && !searching && (
+            <div className="search-status" aria-busy="true">
+              <div className="ss-header">
+                <span className="ss-ico" aria-hidden="true"></span>
+                <span className="ss-title">Membuat gambar</span>
+                <span className="ss-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              </div>
+              {imagingText ? (
+                <div className="ss-query" title={imagingText}>{imagingText}</div>
               ) : null}
               <div className="ss-meter" aria-hidden="true"></div>
               <div className="ss-pills" aria-hidden="true">
@@ -225,6 +243,8 @@ export default memo(
     prev.tick === next.tick &&
     prev.searching === next.searching &&
     prev.searchingQuery === next.searchingQuery &&
+    prev.imaging === next.imaging &&
+    prev.imagingText === next.imagingText &&
     prev.onRetry === next.onRetry &&
     prev.onCopy === next.onCopy
   )
