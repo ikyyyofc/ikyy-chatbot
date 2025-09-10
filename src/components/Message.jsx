@@ -145,7 +145,7 @@ function normalizeMathDelimiters(text) {
   return text
 }
 
-function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, actionsDisabled = false, searching = false, searchingQuery = '', imaging = false, imagingText = '' }) {
+function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, actionsDisabled = false, searching = false, searchingQuery = '', imaging = false, imagingText = '', imagingAction = '' }) {
   const isAssistant = role === 'assistant'
   const [showActions, setShowActions] = useState(false)
   return (
@@ -176,7 +176,7 @@ function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, acti
             <div className="search-status" aria-busy="true">
               <div className="ss-header">
                 <span className="ss-ico" aria-hidden="true"></span>
-                <span className="ss-title">Membuat gambar</span>
+                <span className="ss-title">{String(imagingAction).toLowerCase() === 'edit' ? 'Mengedit gambar' : 'Membuat gambar'}</span>
                 <span className="ss-dots" aria-hidden="true"><span></span><span></span><span></span></span>
               </div>
               {imagingText ? (
@@ -245,6 +245,7 @@ export default memo(
     prev.searchingQuery === next.searchingQuery &&
     prev.imaging === next.imaging &&
     prev.imagingText === next.imagingText &&
+    prev.imagingAction === next.imagingAction &&
     prev.onRetry === next.onRetry &&
     prev.onCopy === next.onCopy
   )

@@ -275,6 +275,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [imageCount, setImageCount] = useState(0)
   const [imagePrompt, setImagePrompt] = useState('')
+  const [imageAction, setImageAction] = useState('') // 'generate' | 'edit'
 
   // Simpan referensi ke messages untuk akses tanpa trigger render
   const messagesRef = useRef(messages)
@@ -385,6 +386,7 @@ export default function App() {
       // Detect image tool markers (generate_image and edit_image)
       let imgStarts = 0
       let imgEnds = 0
+      let lastImgAction = ''
       // start markers
       if (chunk.includes('⟦tool:generate_image:start') || chunk.includes('⟦tool:edit_image:start')) {
         const reGen = /⟦tool:generate_image:start(?::([^⟧]*))?⟧/g
@@ -393,10 +395,12 @@ export default function App() {
         while ((m = reGen.exec(chunk))) {
           imgStarts += 1
           try { if (m[1]) setImagePrompt(decodeURIComponent(m[1])) } catch { setImagePrompt('') }
+          lastImgAction = 'generate'
         }
         while ((m = reEdit.exec(chunk))) {
           imgStarts += 1
           try { if (m[1]) setImagePrompt(decodeURIComponent(m[1])) } catch { setImagePrompt('') }
+          lastImgAction = 'edit'
         }
         try { chunk = chunk.replace(/⟦tool:generate_image:start[^⟧]*⟧/g, '') } catch {}
         try { chunk = chunk.replace(/⟦tool:edit_image:start[^⟧]*⟧/g, '') } catch {}
@@ -415,8 +419,10 @@ export default function App() {
         setImageCount((c) => {
           const next = Math.max(0, c + imgStarts - imgEnds)
           if (next === 0) setImagePrompt('')
+          if (next === 0) setImageAction('')
           return next
         })
+        if (lastImgAction) setImageAction(lastImgAction)
       }
     } catch {}
     if (!chunk) return
@@ -515,6 +521,7 @@ export default function App() {
           setSearchQuery('')
           setImageCount(0)
           setImagePrompt('')
+          setImageAction('')
         }
       }
     })();
@@ -577,6 +584,8 @@ export default function App() {
         setSearchQuery('')
         setImageCount(0)
         setImagePrompt('')
+        setImageAction('')
+        setImageAction('')
         setImageCount(0)
         setImagePrompt('')
         // If no chunk ever arrived, still hide the preloader gracefully
@@ -646,6 +655,8 @@ export default function App() {
       setSearchQuery('')
       setImageCount(0)
       setImagePrompt('')
+      setImageAction('')
+      setImageAction('')
     } catch {}
     activeAssistantIndexRef.current = null
   }
@@ -1000,6 +1011,7 @@ export default function App() {
                   searchingQuery={searchQuery}
                   imaging={isImaging && isActiveAssistant}
                   imagingText={imagePrompt}
+                  imagingAction={imageAction}
                   onCopy={handleCopy}
                   onRetry={m.role === 'assistant' && hasPrevUser ? handleRetry : undefined}
                   msgId={m.id}
