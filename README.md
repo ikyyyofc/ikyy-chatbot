@@ -15,6 +15,12 @@ UI chat minimal (React + Vite) dengan backend Express/Serverless yang terhubung 
 - Default provider: OpenAI. Anda bisa ganti ke Vertex via `config.js` atau env.
 - Streaming respons tersedia di endpoint: `/api/chat/stream`.
 
+### Tools (OpenAI provider)
+
+- `realtime_info`: pencarian realtime (via Felo) untuk info up-to-date.
+- `generate_image`: bikin gambar dari prompt (return URL).
+- `edit_image`: edit gambar dari URL/base64 + prompt (return URL). Model akan menampilkan hasil sebagai gambar Markdown.
+
 ## Konfigurasi AI
 
 - Pilih penyedia model di `config.js`:

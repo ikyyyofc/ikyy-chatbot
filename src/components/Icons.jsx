@@ -87,6 +87,15 @@ export function RetryIcon(props) {
   )
 }
 
+export function PaperclipIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...props}
+      fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15V7.5a4.5 4.5 0 0 0-9 0V17a3 3 0 0 1-6 0V9" />
+    </svg>
+  )
+}
+
 // Brand icons (simplified outlines to match the set)
 export function WhatsAppIcon(props) {
   return (

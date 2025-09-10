@@ -18,7 +18,8 @@ import {
   GitHubIcon, 
   ChevronDownIcon, 
   SendIcon, 
-  StopIcon 
+  StopIcon,
+  PaperclipIcon
 } from './components/Icons.jsx'
 import { GREETING_INSTRUCTION } from '../config.js'
 import { copyText } from './utils/clipboard.js'
@@ -39,6 +40,8 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
   const canSendRef = useRef(false);
   const [canSend, setCanSend] = useState(false); // trigger re-render for disabled state
   const rafRef = useRef(null);
+  const fileRef = useRef(null);
+  const [attach, setAttach] = useState(null); // { dataUrl, name, type, size }
   
   // Fungsi auto-grow yang sangat efisien
   const resizeTextarea = useCallback(() => {
@@ -76,7 +79,7 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
   const handleInput = useCallback((e) => {
     const value = e.target.value;
     inputRef.current = value;
-    const nextCanSend = value.trim().length > 0;
+    const nextCanSend = value.trim().length > 0 || !!attach;
     canSendRef.current = nextCanSend;
     setCanSend(nextCanSend);
     
@@ -84,7 +87,7 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
     if (value.length % 5 === 0 || value.includes('\n')) {
       resizeTextarea();
     }
-  }, [resizeTextarea]);
+  }, [resizeTextarea, attach]);
 
   const handleKeyDown = useCallback((e) => {
     // Biarkan Enter membuat baris baru secara default.
@@ -99,6 +102,14 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
       }
     };
   }, []);
+
+  // Enable send when there's an attachment even if text empty
+  useEffect(() => {
+    const value = inputRef.current || ''
+    const nextCanSend = value.trim().length > 0 || !!attach
+    canSendRef.current = nextCanSend
+    setCanSend(nextCanSend)
+  }, [attach])
 
   return (
     <div className="textarea-wrap">
@@ -121,29 +132,88 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
           perspective: '1000px'
         }}
       />
-      <button
-        className={`icon-btn send-icon${loading ? ' stop' : ''}`}
-        onClick={loading ? stopStreaming : () => {
-          if (canSendRef.current) {
-            sendMessage(inputRef.current);
-            // Reset textarea dengan manipulasi DOM langsung
-            if (textareaRef.current) {
-              textareaRef.current.value = '';
-              textareaRef.current.style.height = 'auto';
+      {/* Attach image */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          try {
+            const f = e.target.files && e.target.files[0]
+            if (!f) return
+            const reader = new FileReader()
+            reader.onload = () => {
+              const dataUrl = String(reader.result || '')
+              setAttach({ dataUrl, name: f.name, type: f.type, size: f.size, file: f })
             }
-            inputRef.current = '';
-            canSendRef.current = false;
-            setCanSend(false);
-          }
+            reader.readAsDataURL(f)
+          } catch {}
         }}
-        disabled={loading ? false : !canSend}
-        aria-label={loading ? 'Hentikan respons' : 'Kirim pesan'}
-        title={loading ? 'Hentikan respons' : 'Kirim pesan'}
-        // Optimasi kritis: Promosikan ke layer GPU
-        style={{ willChange: 'transform' }}
-      >
-        {loading ? <StopIcon /> : <SendIcon />}
-      </button>
+      />
+      {attach && (
+        <div className="attach-preview">
+          <div className="ap-inner">
+            <img className="ap-thumb" src={attach.dataUrl} alt="preview" />
+            <div className="ap-meta">
+              <div className="ap-name" title={attach.name || 'image'}>{attach.name || 'image'}</div>
+              <div className="ap-size">{Math.round((attach.size || 0)/1024)} KB</div>
+            </div>
+            <button className="ap-remove" onClick={() => { setAttach(null) }} title="Hapus gambar" aria-label="Hapus gambar">
+              <ResetIcon />
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="composer-actions">
+        <button
+          className="icon-btn attach-btn"
+          onClick={() => { try { fileRef.current?.click() } catch {} }}
+          aria-label="Lampirkan gambar"
+          title="Lampirkan gambar"
+        >
+          <PaperclipIcon />
+        </button>
+        <button
+          className={`icon-btn send-icon${loading ? ' stop' : ''}`}
+          onClick={loading ? stopStreaming : async () => {
+            if (canSendRef.current) {
+              let uploadedUrl = null
+              try {
+                if (attach?.file) {
+                  const fd = new FormData()
+                  fd.append('file', attach.file, attach.name || 'image')
+                  const r = await fetch('/api/upload', { method: 'POST', body: fd })
+                  const j = await r.json().catch(() => ({}))
+                  if (!r.ok || !j?.ok || !j?.url) throw new Error('upload_failed')
+                  uploadedUrl = j.url
+                }
+              } catch (e) {
+                console.error('Upload gagal', e)
+                // Tetap kirim pesan tanpa attachment jika upload gagal
+              }
+              const at = null // we no longer send base64
+              sendMessage(inputRef.current, at, uploadedUrl);
+              // Reset textarea dengan manipulasi DOM langsung
+              if (textareaRef.current) {
+                textareaRef.current.value = '';
+                textareaRef.current.style.height = 'auto';
+              }
+              inputRef.current = '';
+              canSendRef.current = false;
+              setCanSend(false);
+              setAttach(null)
+            }
+          }}
+          disabled={loading ? false : !canSend}
+          aria-label={loading ? 'Hentikan respons' : 'Kirim pesan'}
+          title={loading ? 'Hentikan respons' : 'Kirim pesan'}
+          // Optimasi kritis: Promosikan ke layer GPU
+          style={{ willChange: 'transform' }}
+        >
+          {loading ? <StopIcon /> : <SendIcon />}
+        </button>
+      </div>
     </div>
   );
 });
@@ -288,23 +358,34 @@ export default function App() {
           return next
         })
       }
-      // Detect generate_image tool markers
+      // Detect image tool markers (generate_image and edit_image)
       let imgStarts = 0
       let imgEnds = 0
-      if (chunk.includes('⟦tool:generate_image:start')) {
-        const re = /⟦tool:generate_image:start(?::([^⟧]*))?⟧/g
+      // start markers
+      if (chunk.includes('⟦tool:generate_image:start') || chunk.includes('⟦tool:edit_image:start')) {
+        const reGen = /⟦tool:generate_image:start(?::([^⟧]*))?⟧/g
+        const reEdit = /⟦tool:edit_image:start(?::([^⟧]*))?⟧/g
         let m
-        while ((m = re.exec(chunk))) {
+        while ((m = reGen.exec(chunk))) {
+          imgStarts += 1
+          try { if (m[1]) setImagePrompt(decodeURIComponent(m[1])) } catch { setImagePrompt('') }
+        }
+        while ((m = reEdit.exec(chunk))) {
           imgStarts += 1
           try { if (m[1]) setImagePrompt(decodeURIComponent(m[1])) } catch { setImagePrompt('') }
         }
         try { chunk = chunk.replace(/⟦tool:generate_image:start[^⟧]*⟧/g, '') } catch {}
+        try { chunk = chunk.replace(/⟦tool:edit_image:start[^⟧]*⟧/g, '') } catch {}
       }
-      if (chunk.includes('⟦tool:generate_image:end')) {
-        const re2 = /⟦tool:generate_image:end(?::([^⟧]*))?⟧/g
+      // end markers
+      if (chunk.includes('⟦tool:generate_image:end') || chunk.includes('⟦tool:edit_image:end')) {
+        const reGen2 = /⟦tool:generate_image:end(?::([^⟧]*))?⟧/g
+        const reEdit2 = /⟦tool:edit_image:end(?::([^⟧]*))?⟧/g
         let m2
-        while ((m2 = re2.exec(chunk))) { imgEnds += 1 }
+        while ((m2 = reGen2.exec(chunk))) { imgEnds += 1 }
+        while ((m2 = reEdit2.exec(chunk))) { imgEnds += 1 }
         try { chunk = chunk.replace(/⟦tool:generate_image:end[^⟧]*⟧/g, '') } catch {}
+        try { chunk = chunk.replace(/⟦tool:edit_image:end[^⟧]*⟧/g, '') } catch {}
       }
       if (imgStarts || imgEnds) {
         setImageCount((c) => {
@@ -326,9 +407,17 @@ export default function App() {
     } catch {}
   }, [])
 
-  const sendMessage = useCallback((text) => {
+  const sendMessage = useCallback((text, attachDataUrl = null, attachmentUrl = null) => {
     if (!text.trim() || loading) return
-    const userMsg = { id: nextIdRef.current++, role: 'user', content: text.trim() }
+    let content = text.trim()
+    if (attachmentUrl) {
+      // Render image nicely in the user bubble via Markdown
+      content += `\n\n![image](${attachmentUrl})`
+    } else if (attachDataUrl) {
+      // Fallback only if URL upload failed (should be rare)
+      content += `\n\n![image](${attachDataUrl})`
+    }
+    const userMsg = { id: nextIdRef.current++, role: 'user', content }
     // Add user and a placeholder assistant message
     setMessages(prev => {
       // reset live buffer for fresh stream render
@@ -349,7 +438,7 @@ export default function App() {
         const res = await fetch('/api/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId, userMessage: userMsg.content, clientStreamId: myStreamId }),
+          body: JSON.stringify({ sessionId, userMessage: userMsg.content, clientStreamId: myStreamId, attachmentDataUrl: attachDataUrl || undefined, attachmentUrl: attachmentUrl || undefined }),
           signal: ac.signal
         })
         if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)

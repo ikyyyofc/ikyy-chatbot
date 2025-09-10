@@ -2,6 +2,10 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { randomBytes } from 'crypto'
+import multer from 'multer'
+import fs from 'node:fs'
+import fsp from 'node:fs/promises'
+import path from 'node:path'
 import { withSystemPrompt } from '../config.js'
 import { chat } from '../lib/provider.js'
 
@@ -18,6 +22,51 @@ const externalStops = new Map()
 app.use(cors())
 // Parse JSON request bodies for API routes with a generous limit
 app.use(express.json({ limit: process.env.BODY_LIMIT || '50mb' }))
+
+// Serve uploaded files and prepare upload folder (local/dev use)
+const uploadDir = path.join(process.cwd(), 'uploads')
+try { fs.mkdirSync(uploadDir, { recursive: true }) } catch {}
+app.use('/uploads', express.static(uploadDir, { maxAge: '7d' }))
+
+// Multer storage for uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) { cb(null, uploadDir) },
+  filename: function (req, file, cb) {
+    const ext = (() => { try { return path.extname(file?.originalname || '') } catch { return '' } })()
+    const name = randomAlphaNum(20) + (ext && ext.length <= 8 ? ext.toLowerCase() : '')
+    cb(null, name)
+  }
+})
+const upload = multer({ storage })
+
+// Periodic cleanup for uploaded files (temporary storage)
+const UPLOAD_TTL_MINUTES = Math.max(1, parseInt(process.env.UPLOAD_TTL_MINUTES || '60', 10) || 60)
+const UPLOAD_TTL_MS = UPLOAD_TTL_MINUTES * 60 * 1000
+
+async function cleanupUploads() {
+  try {
+    const now = Date.now()
+    const entries = await fsp.readdir(uploadDir, { withFileTypes: true })
+    for (const ent of entries) {
+      if (!ent.isFile()) continue
+      const filePath = path.join(uploadDir, ent.name)
+      try {
+        const st = await fsp.stat(filePath)
+        const mtime = st.mtimeMs || st.ctimeMs || 0
+        if (now - mtime >= UPLOAD_TTL_MS) {
+          await fsp.unlink(filePath).catch(() => {})
+        }
+      } catch {}
+    }
+  } catch {}
+}
+
+// Run once on boot (non-blocking), then schedule every TTL
+cleanupUploads().catch(() => {})
+try {
+  const timer = setInterval(() => { cleanupUploads().catch(() => {}) }, UPLOAD_TTL_MS)
+  if (typeof timer.unref === 'function') timer.unref()
+} catch {}
 
 // Credit header for API responses only
 app.use((req, res, next) => {
@@ -46,10 +95,24 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true })
 })
 
+// Upload endpoint -> returns absolute URL
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      res.status(400)
+      return res.json({ ok: false, error: 'no_file' })
+    }
+    const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+    res.json({ ok: true, url, name: req.file.originalname, size: req.file.size, type: req.file.mimetype })
+  } catch (e) {
+    try { res.status(500).json({ ok: false, error: String(e?.message || 'upload_failed') }) } catch {}
+  }
+})
+
 // Streaming endpoint: streams text chunks directly
 app.post('/api/chat/stream', async (req, res) => {
   try {
-    const { messages, sessionId, userMessage, resetSession, action, clientStreamId } = req.body || {}
+    const { messages, sessionId, userMessage, resetSession, action, clientStreamId, attachmentDataUrl, attachmentUrl } = req.body || {}
     const streamKey = (sessionId && clientStreamId) ? `${sessionId}:${clientStreamId}` : null
     // Prepare tracking record early; will fill finish/persist later
     const record = streamKey ? { response: null, res, finish: null, persist: null } : null
@@ -101,7 +164,14 @@ app.post('/api/chat/stream', async (req, res) => {
       buildHistory = hist.slice(0, keepIdx + 1)
     } else if (sessionId && typeof userMessage === 'string') {
       const hist = sessions.get(sessionId) || []
-      buildHistory = [...hist, { role: 'user', content: String(userMessage) }]
+      let content = String(userMessage)
+      if (attachmentUrl && typeof attachmentUrl === 'string') {
+        content += `\n\nATTACHMENT_URL: ${attachmentUrl}`
+      }
+      if (attachmentDataUrl && typeof attachmentDataUrl === 'string' && attachmentDataUrl.startsWith('data:')) {
+        content += `\n\nATTACHMENT_DATA_URL: ${attachmentDataUrl}`
+      }
+      buildHistory = [...hist, { role: 'user', content }]
     } else if (Array.isArray(messages) && messages.length > 0) {
       buildHistory = messages
     } else {
