@@ -44,6 +44,9 @@ Thumbs.db
 tmp/
 temp/
 
+# Uploads (temporary user uploads)
+uploads/
+
 # Vercel local project data
 .vercel/
 package-lock.json

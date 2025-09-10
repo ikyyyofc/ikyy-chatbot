@@ -112,6 +112,8 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   }
 })
 
+// (removed) Direct image edit endpoint was here — reverted per request
+
 // Streaming endpoint: streams text chunks directly
 app.post('/api/chat/stream', async (req, res) => {
   try {

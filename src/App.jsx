@@ -9,6 +9,7 @@ import React, {
   Fragment,
   forwardRef
 } from 'react'
+import axios from 'axios'
 import Message from './components/Message.jsx'
 import { 
   BotIcon, 
@@ -82,7 +83,7 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
   const handleInput = useCallback((e) => {
     const value = e.target.value;
     inputRef.current = value;
-    const nextCanSend = value.trim().length > 0 || !!attach;
+    const nextCanSend = value.trim().length > 0 || (!!attach && !attach.uploading);
     canSendRef.current = nextCanSend;
     setCanSend(nextCanSend);
     
@@ -109,7 +110,7 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
   // Enable send when there's an attachment even if text empty
   useEffect(() => {
     const value = inputRef.current || ''
-    const nextCanSend = value.trim().length > 0 || !!attach
+    const nextCanSend = value.trim().length > 0 || (!!attach && !attach.uploading)
     canSendRef.current = nextCanSend
     setCanSend(nextCanSend)
   }, [attach])
@@ -141,15 +142,37 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
         type="file"
         accept="image/*"
         style={{ display: 'none' }}
-        onChange={(e) => {
+        onChange={async (e) => {
           try {
             const f = e.target.files && e.target.files[0]
             if (!f) return
             if (DEBUG) console.log('[ui:file_selected]', { name: f.name, size: f.size, type: f.type })
             const reader = new FileReader()
-            reader.onload = () => {
+            reader.onload = async () => {
               const dataUrl = String(reader.result || '')
-              setAttach({ dataUrl, name: f.name, type: f.type, size: f.size, file: f })
+              setAttach({ dataUrl, name: f.name, type: f.type, size: f.size, file: f, uploading: true, progress: 0, uploadedUrl: null, error: '' })
+              try {
+                if (DEBUG) console.log('[ui:upload:start]')
+                const fd = new FormData()
+                fd.append('file', f, f.name || 'image')
+                const r = await axios.post('/api/upload', fd, {
+                  headers: { 'Content-Type': 'multipart/form-data' },
+                  onUploadProgress: (evt) => {
+                    try {
+                      const total = evt.total || f.size || 0
+                      const pct = total ? Math.round((evt.loaded / total) * 100) : 0
+                      setAttach(prev => prev ? { ...prev, progress: pct } : prev)
+                    } catch {}
+                  }
+                })
+                const j = r?.data || {}
+                if (!j?.ok || !j?.url) throw new Error('upload_failed')
+                setAttach(prev => prev ? { ...prev, uploading: false, uploadedUrl: j.url, progress: 100 } : prev)
+                if (DEBUG) console.log('[ui:upload:ok]', j)
+              } catch (err) {
+                if (DEBUG) console.log('[ui:upload:error]', err?.message || err)
+                setAttach(prev => prev ? { ...prev, uploading: false, uploadedUrl: null, error: String(err?.message || 'upload_failed') } : prev)
+              }
             }
             reader.readAsDataURL(f)
           } catch {}
@@ -161,7 +184,13 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
             <img className="ap-thumb" src={attach.dataUrl} alt="preview" />
             <div className="ap-meta">
               <div className="ap-name" title={attach.name || 'image'}>{attach.name || 'image'}</div>
-              <div className="ap-size">{Math.round((attach.size || 0)/1024)} KB</div>
+              <div className="ap-size">
+                {Math.round((attach.size || 0)/1024)} KB
+                {attach?.uploading ? ` • Mengunggah… ${typeof attach.progress==='number' ? attach.progress + '%' : ''}` : (attach?.uploadedUrl ? ' • Terunggah' : (attach?.error ? ' • Gagal' : ''))}
+              </div>
+              {attach?.uploading ? (
+                <div className="ap-progress"><span className="ap-meter" style={{ width: `${attach.progress||0}%` }} /></div>
+              ) : null}
             </div>
             <button className="ap-remove" onClick={() => { setAttach(null) }} title="Hapus gambar" aria-label="Hapus gambar">
               <ResetIcon />
@@ -182,26 +211,10 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
           className={`icon-btn send-icon${loading ? ' stop' : ''}`}
           onClick={loading ? stopStreaming : async () => {
             if (canSendRef.current) {
-              let uploadedUrl = null
-              try {
-                if (attach?.file) {
-                  const fd = new FormData()
-                  fd.append('file', attach.file, attach.name || 'image')
-                  if (DEBUG) console.log('[ui:upload:start]')
-                  const r = await fetch('/api/upload', { method: 'POST', body: fd })
-                  const j = await r.json().catch(() => ({}))
-                  if (!r.ok || !j?.ok || !j?.url) throw new Error('upload_failed')
-                  uploadedUrl = j.url
-                  if (DEBUG) console.log('[ui:upload:ok]', j)
-                }
-              } catch (e) {
-                console.error('Upload gagal', e)
-                if (DEBUG) console.log('[ui:upload:error]', e?.message || e)
-                // Tetap kirim pesan tanpa attachment jika upload gagal
-              }
+              const uploadedUrl = attach?.uploadedUrl || null
               const at = null // we no longer send base64
               if (DEBUG) console.log('[ui:stream:start]', { hasText: !!(inputRef.current||'').trim(), hasUrl: !!uploadedUrl })
-              sendMessage(inputRef.current, at, uploadedUrl);
+              sendMessage(inputRef.current, at, uploadedUrl)
               // Reset textarea dengan manipulasi DOM langsung
               if (textareaRef.current) {
                 textareaRef.current.value = '';
@@ -213,7 +226,7 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
               setAttach(null)
             }
           }}
-          disabled={loading ? false : !canSend}
+          disabled={loading ? true : ((attach && attach.uploading) || !canSend)}
           aria-label={loading ? 'Hentikan respons' : 'Kirim pesan'}
           title={loading ? 'Hentikan respons' : 'Kirim pesan'}
           // Optimasi kritis: Promosikan ke layer GPU
@@ -1078,3 +1091,4 @@ function TypingText({ text = '', texts, speed = 90, eraseSpeed = 55, hold = 1400
 
   return <>{output}</>
 }
+  // (removed) direct image edit flow — reverted per request

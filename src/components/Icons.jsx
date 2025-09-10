@@ -96,6 +96,8 @@ export function PaperclipIcon(props) {
   )
 }
 
+// (MagicWandIcon removed in revert)
+
 // Brand icons (simplified outlines to match the set)
 export function WhatsAppIcon(props) {
   return (
