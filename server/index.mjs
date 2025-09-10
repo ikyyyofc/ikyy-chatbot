@@ -11,6 +11,7 @@ import { chat } from '../lib/provider.js'
 
 const app = express()
 const port = process.env.PORT || 7860
+const DEBUG = String(process.env.DEBUG || '').toLowerCase() === 'true'
 // In-memory session store: maps sessionId -> [{role, content}, ...]
 const sessions = new Map()
 // Track active upstream streams to allow external stop (useful behind proxies)
@@ -92,7 +93,7 @@ app.get('/', (req, res) => {
 })
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true })
+  res.json({ ok: true, debug: DEBUG })
 })
 
 // Upload endpoint -> returns absolute URL
@@ -103,8 +104,10 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
       return res.json({ ok: false, error: 'no_file' })
     }
     const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+    if (DEBUG) console.log('[upload]', JSON.stringify({ name: req.file.originalname, size: req.file.size, type: req.file.mimetype, url }))
     res.json({ ok: true, url, name: req.file.originalname, size: req.file.size, type: req.file.mimetype })
   } catch (e) {
+    if (DEBUG) console.error('[upload:error]', e?.message || e)
     try { res.status(500).json({ ok: false, error: String(e?.message || 'upload_failed') }) } catch {}
   }
 })
@@ -122,7 +125,9 @@ app.post('/api/chat/stream', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-transform')
     res.setHeader('Connection', 'keep-alive')
     res.setHeader('X-Accel-Buffering', 'no')
+    if (streamKey) res.setHeader('X-Debug-Id', streamKey)
     if (typeof res.flushHeaders === 'function') res.flushHeaders()
+    if (DEBUG) console.log('[chat:req]', JSON.stringify({ sessionId, clientStreamId, action, resetSession, hasAttachUrl: !!attachmentUrl, hasAttachDataUrl: !!attachmentDataUrl, msgs: Array.isArray(messages) ? messages.length : 0, hasUser: !!userMessage }))
 
     // Optional: reset session
     if (sessionId && resetSession) {
@@ -205,6 +210,7 @@ app.post('/api/chat/stream', async (req, res) => {
 
     const response = await chat(finalMessages);
     if (record) { record.response = response }
+    if (DEBUG) console.log('[chat:upstream_open]', JSON.stringify({ streamKey, count: finalMessages?.length }))
 
     let buffer = '';
     let isProcessing = false;
@@ -313,6 +319,7 @@ app.post('/api/chat/stream', async (req, res) => {
         activeStreams.delete(streamKey)
         externalStops.delete(streamKey)
       }
+      if (DEBUG) console.log('[chat:finish]', JSON.stringify({ streamKey, reason, delivered: deliveredText.length, total: assistantText.length, persisted, clientClosed }))
     }
 
     // Fill tracking record once finish/persist exist
@@ -352,6 +359,7 @@ app.post('/api/chat/stream', async (req, res) => {
         if (!res.headersSent && !clientClosed) res.status(500)
         if (!clientClosed) res.end('Streaming error: ' + (err?.message || 'unknown error'))
       } catch {}
+      if (DEBUG) console.error('[chat:upstream_error]', streamKey, err?.message || err)
     })
 
     response.on("end", () => finish('upstream_end'))

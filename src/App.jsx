@@ -42,6 +42,9 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
   const rafRef = useRef(null);
   const fileRef = useRef(null);
   const [attach, setAttach] = useState(null); // { dataUrl, name, type, size }
+  const DEBUG = useMemo(() => {
+    try { const sp = new URLSearchParams(location.search); if (sp.get('debug') === '1') return true; return localStorage.getItem('ikyy_debug') === '1' } catch { return false }
+  }, [])
   
   // Fungsi auto-grow yang sangat efisien
   const resizeTextarea = useCallback(() => {
@@ -142,6 +145,7 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
           try {
             const f = e.target.files && e.target.files[0]
             if (!f) return
+            if (DEBUG) console.log('[ui:file_selected]', { name: f.name, size: f.size, type: f.type })
             const reader = new FileReader()
             reader.onload = () => {
               const dataUrl = String(reader.result || '')
@@ -183,16 +187,20 @@ const InputComposer = memo(({ loading, sendMessage, stopStreaming, onFocusCompos
                 if (attach?.file) {
                   const fd = new FormData()
                   fd.append('file', attach.file, attach.name || 'image')
+                  if (DEBUG) console.log('[ui:upload:start]')
                   const r = await fetch('/api/upload', { method: 'POST', body: fd })
                   const j = await r.json().catch(() => ({}))
                   if (!r.ok || !j?.ok || !j?.url) throw new Error('upload_failed')
                   uploadedUrl = j.url
+                  if (DEBUG) console.log('[ui:upload:ok]', j)
                 }
               } catch (e) {
                 console.error('Upload gagal', e)
+                if (DEBUG) console.log('[ui:upload:error]', e?.message || e)
                 // Tetap kirim pesan tanpa attachment jika upload gagal
               }
               const at = null // we no longer send base64
+              if (DEBUG) console.log('[ui:stream:start]', { hasText: !!(inputRef.current||'').trim(), hasUrl: !!uploadedUrl })
               sendMessage(inputRef.current, at, uploadedUrl);
               // Reset textarea dengan manipulasi DOM langsung
               if (textareaRef.current) {
@@ -222,6 +230,9 @@ InputComposer.displayName = 'InputComposer';
 
 export default function App() {
   const [messages, setMessages] = useState([])
+  const DEBUG = useMemo(() => {
+    try { const sp = new URLSearchParams(location.search); if (sp.get('debug') === '1') return true; return localStorage.getItem('ikyy_debug') === '1' } catch { return false }
+  }, [])
   const [sessionId] = useState(() => {
     try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID() } catch {}
     return 'sess-' + Math.random().toString(36).slice(2) + '-' + Date.now()
@@ -441,6 +452,7 @@ export default function App() {
           body: JSON.stringify({ sessionId, userMessage: userMsg.content, clientStreamId: myStreamId, attachmentDataUrl: attachDataUrl || undefined, attachmentUrl: attachmentUrl || undefined }),
           signal: ac.signal
         })
+        if (DEBUG) console.log('[ui:stream:resp]', { ok: res.ok, status: res.status, debugId: res.headers.get('X-Debug-Id') })
         if (!res.ok || !res.body) throw new Error(`API error ${res.status}`)
         const reader = res.body.getReader()
         readerRef.current = reader
@@ -457,6 +469,7 @@ export default function App() {
             break
           }
           if (!gotFirstChunk && chunk) gotFirstChunk = true
+          if (DEBUG) console.log('[ui:stream:chunk]', { size: chunk.length })
           appendToAssistant(chunk)
         }
         
@@ -479,6 +492,7 @@ export default function App() {
         // Clear reader ref so Stop won't try cancel a finished stream
         if (readerRef.current) readerRef.current = null
         if (myStreamId === streamIdRef.current) {
+          if (DEBUG) console.log('[ui:stream:finish]')
           const targetIndex = (typeof activeAssistantIndexRef.current === 'number') ? activeAssistantIndexRef.current : (messagesRef.current.length - 1)
           flushLiveToState(targetIndex)
           setLoading(false)
