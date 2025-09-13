@@ -175,7 +175,7 @@ html[data-theme='light'] .bubble-inner th{ background: rgba(2,6,23,.06) }
 
 /* Ensure media/content never exceeds bubble */
 .bubble-inner > * { max-width: 100% }
-.bubble-inner img { max-width: 100%; height: auto; display: block; border-radius: 12px; border: 1px solid var(--panel-border); margin: 8px 0; box-shadow: var(--shadow) }
+.bubble-inner img { max-width: 100%; height: auto; display: block; border-radius: 12px; border: 1px solid var(--panel-border); margin: 8px 0; box-shadow: none }
 .bubble-inner video { max-width: 100%; height: auto; display: block; border-radius: 8px }
 .bubble-inner iframe { max-width: 100%; width: 100%; border: 0; display: block; border-radius: 8px }
 /* Keep code, math, and tables scrollable within bubble */

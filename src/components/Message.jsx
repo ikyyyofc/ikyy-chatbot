@@ -190,17 +190,20 @@ function MessageImpl({ id, role, content, tick = 0, onCopy, onRetry, msgId, acti
               </div>
             </div>
           )}
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
-            rehypePlugins={[rehypeKatex]}
-            components={{
-              a: ({ node, ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
-              pre: ({ children }) => <Fragment>{children}</Fragment>,
-              code: Code
-            }}
-          >
-            {normalizeMathDelimiters(content) || ''}
-          </ReactMarkdown>
+          {/* Tampilkan isi hanya setelah proses imaging selesai agar gambar tidak muncul setengah jalan */}
+          {!(isAssistant && imaging) && (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+              components={{
+                a: ({ node, ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
+                pre: ({ children }) => <Fragment>{children}</Fragment>,
+                code: Code
+              }}
+            >
+              {normalizeMathDelimiters(content) || ''}
+            </ReactMarkdown>
+          )}
           </div>
         </div>
         {!isAssistant ? <div className="avatar user"><UserIcon /></div> : <div className="spacer" />}
